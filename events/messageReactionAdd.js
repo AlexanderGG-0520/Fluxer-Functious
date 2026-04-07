@@ -26,7 +26,7 @@ module.exports = async (client, message, user) => {
     if (editCollector && (editCollector.messageId === message.messageId || (editCollector?.botMessage && editCollector.botMessage === message.messageId && editCollector.channelId === message.channelId))) return editCollectorHandler(client, message, userId, editCollector, reactionChan, reactionMsg, emojiId, "add");
     if (paginateCheck && paginateCheck.message === message.messageId) return paginationHandler(client, message, paginateCheck, reactionMsg, emojiId);
     if (pollCheck) return pollHandler(client, message, userId, pollCheck, reactionMsg, emojiId, "add");
-    if (emojiId === "⌚" && reactionMsg.author.id === userId) return timezoneHandler(client, message, userId);
+    if (emojiId === "⌚" && client.functions.get("parseTime")(reactionMsg.content, "America/New_York") && reactionMsg.author.id === userId) return timezoneHandler(client, message, userId);
   
     const db = await Giveaways.findOne({ messageId: message.messageId });
     if (db) return giveawayHandler(client, message, userId, db, emojiId, "add");

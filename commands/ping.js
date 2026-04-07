@@ -1,5 +1,5 @@
-const { EmbedBuilder } = require("@fluxerjs/core");
-const SavedPolls = require("../models/savedPolls");
+const { EmbedBuilder } = require("@erinjs/core");
+const Polls = require("../models/polls");
 module.exports = {
   config: {
     name: "ping",
@@ -12,7 +12,7 @@ module.exports = {
   run: async (client, message, args, db) => {
     async function Database() {
       let beforeCall = Date.now();
-      await SavedPolls.find();
+      await Polls.countDocuments();
       return Date.now() - beforeCall;
     }
 
@@ -26,53 +26,32 @@ module.exports = {
       }
     }
 
+    const [gatewayPing, dbPing] = await Promise.all([botPing(), Database()]);
+    const gatewayStr = !isNaN(gatewayPing) ? `${gatewayPing}ms` : "502 bad Gateway";
+
     const start = Date.now();
-    message.reply({ embeds: [
+    const reply = await message.reply({ embeds: [
       new EmbedBuilder()
         .setColor("#A52F05")
         .setTitle("Flux Pong")
         .addFields(
-          {
-            name: "**Gateway**",
-            value: `\`${!isNaN(await botPing()) ? `${await botPing()}ms` : "502 bad Gateway"}\``,
-            inline: true,
-          },
-          {
-            name: "**Database**",
-            value: `\`${await Database()}ms\``,
-            inline: true,
-          },
-          {
-            name: "**Round-trip**",
-            value: `\`...\``,
-            inline: true,
-          },
+          { name: "**Gateway**", value: `\`${gatewayStr}\``, inline: true },
+          { name: "**Database**", value: `\`${dbPing}ms\``, inline: true },
+          { name: "**Round-trip**", value: "`...`", inline: true },
         ),
-    ], }).then(async (msg) => {
-      await msg.edit({
-        embeds: [
-          new EmbedBuilder()
-            .setColor("#A52F05")
-            .setTitle("Flux Pong")
-            .addFields(
-              {
-                name: "**Gateway**",
-                value: `\`${!isNaN(await botPing()) ? `${await botPing()}ms` : "502 bad Gateway"}\``,
-                inline: true,
-              },
-              {
-                name: "**Database**",
-                value: `\`${await Database()}ms\``,
-                inline: true,
-              },
-              {
-                name: "**Round-trip**",
-                value: `\`${Date.now() - start}ms\``,
-                inline: true,
-              },
-            ),
-        ],
-      });
+    ]});
+
+    await reply.edit({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("#A52F05")
+          .setTitle("Flux Pong")
+          .addFields(
+            { name: "**Gateway**", value: `\`${gatewayStr}\``, inline: true },
+            { name: "**Database**", value: `\`${dbPing}ms\``, inline: true },
+            { name: "**Round-trip**", value: `\`${Date.now() - start}ms\``, inline: true },
+          ),
+      ],
     });
   },
 };

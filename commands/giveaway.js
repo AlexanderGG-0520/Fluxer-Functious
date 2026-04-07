@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlags } = require('@fluxerjs/core')
+const { EmbedBuilder, PermissionFlags } = require('@erinjs/core')
 const Giveaways = require(`../models/giveaways`)
 const dhms = require(`../functions/dhms`);
 const regex = new RegExp(/^channel:\s*(?:<#!?\d+>|[\d.]+)$/);

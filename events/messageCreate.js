@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 const Collector = require("../functions/messageCollector");
 const EditCollector = require("../functions/messageEdit");
 const parseTime = require("../functions/parseTime");
@@ -13,16 +13,22 @@ module.exports = async (client, message) => {
   )
     return;
 
-  const me = message.guild
-    ? (message.guild.members.me ??
-      (await message.guild.members.fetchMe().catch(() => null)))
-    : null;
+  // const channel = message.channel;
+  // const chanPerms = me && channel ? me.permissionsIn(channel) : null;
 
-  const channel = message.channel;
-  const chanPerms = me && channel ? me.permissionsIn(channel) : null;
+  const member = message.guild.members.get(message.author.id) ?? await message.guild.fetchMember(message.author.id);
+  const isMention = new RegExp(`^(<@!?${client.user.id}>)`).test(message.content);
   const db = await client.database.getGuild(message.guildId, true);
 
-  if (new RegExp(`^(<@!?${client.user.id}>)`).test(message.content)) {
+  if (client.messageCollector.has(message.author.id) && client.messageCollector.get(message.author.id).channelId === message.channelId && !client.messageCollector.get(message.author.id).messageId)
+    return await Collector(client, message, db);
+
+  if (client.messageEdit.has(message.author.id) && client.messageEdit.get(message.author.id).channelId === message.channelId && !client.messageEdit.get(message.author.id).messageId)
+    return await EditCollector(client, message, db);
+  
+  if (!isMention && !message.content.match(/^\S/)) return;
+  
+  if (isMention) {
     const mention = new EmbedBuilder()
       .setColor("#A52F05")
       .setTitle(client.user.username)
@@ -31,20 +37,12 @@ module.exports = async (client, message) => {
     return message.reply({ embeds: [mention] }, false).catch(() => {});
   }
 
-  if (client.messageCollector.has(message.author.id) && client.messageCollector.get(message.author.id).channelId === message.channelId && !client.messageCollector.get(message.author.id).messageId)
-    return await Collector(client, message, db);
-
-  if (client.messageEdit.has(message.author.id) && client.messageEdit.get(message.author.id).channelId === message.channelId && !client.messageEdit.get(message.author.id).messageId)
-    return await EditCollector(client, message, db);
-
-  if (parseTime(message.content) && db.timezoneConvert && db.userTimezones.find((u) => u.userId === message.author.id)) {
-    try {
-    await message.react("⌚");
-    } catch {
-    client.database.updateGuild(message.guildId, { timezoneConvert: false });
+  if (db.timezoneConvert) {
+    const userData = await client.database.getUser(message.author.id, false);
+    if (userData?.timezone && parseTime(message.content)) {
+      message.react("⌚").catch(() => {});
     }
   }
-
 
   if (!message.content.startsWith(db.prefix)) return;
   const args = message.content.slice(db.prefix.length).trim().split(/ +/g);
@@ -54,12 +52,6 @@ module.exports = async (client, message) => {
   const commandfile =
     client.commands.get(cmd) || client.commands.get(client.aliases.get(cmd));
   if (!commandfile) return;
-
-  let member = message.guild.members.get(message.author.id);
-  if (!member)
-    member = await message.guild
-      .fetchMember(message.author.id)
-      .catch(() => null);
 
   // Turn off permission checking for the bot as Fluxer has lots of issues with it currently and I'd rather have the bot error than not respond when it should.
   // if (!me?.permissions.has(PermissionFlags.SendMessages)) {

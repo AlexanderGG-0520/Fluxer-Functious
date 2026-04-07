@@ -1,8 +1,10 @@
 require('dotenv').config({ quiet: true });
 const getVoiceStates = require('./functions/getVoiceStates');
+const TranslationHandler = require("./handlers/translation");
 const { Collection } = require("@discordjs/collection");
+const DatabaseHandler = require("./handlers/database");
 const color = require("./functions/colorCodes");
-const { Client } = require("@fluxerjs/core");
+const { Client } = require("@erinjs/core");
 const Sentry = require("@sentry/node");
 
 const client = new Client({ 
@@ -24,9 +26,6 @@ function connectedToFluxer() {
   }
 }
 
-const TranslationHandler = require("./handlers/translation");
-const DatabaseHandler = require("./handlers/database");
-
 if (process.env.SENTRY_DSN) Sentry.init({ dsn: process.env.SENTRY_DSN, tracesSampleRate: 1.0, profilesSampleRate: 1.0 });
 
 client.config = require("./config");
@@ -38,7 +37,7 @@ client.database.guildSweeper(client);
 client.sentry = Sentry;
 
 ["observedVoiceUsers", "observedVoiceBots", "reactions", "paginate", "timeout", "polls", "used", "messageCollector", "messageEdit"].forEach(x => client[x] = new Map());
-["aliases", "commands", "event", "functions", "reactionHandlers"].forEach(x => client[x] = new Collection());
+["aliases", "commands", "event", "functions", "reactionHandlers", "invites"].forEach(x => client[x] = new Collection());
 ["command", "event", "function"].forEach(x => require(`./handlers/${x}`)(client));
 
 process.on("unhandledRejection", (reason, p) => {

@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("@fluxerjs/core");
+const { EmbedBuilder } = require("@erinjs/core");
 
 module.exports = async (client, message, userId, collector, reactionChan, reactionMsg, emojiId, event = "add") => {
     if (emojiId === client.config.emojis.check && collector.oldMessageId === reactionMsg.id) {

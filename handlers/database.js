@@ -4,7 +4,9 @@ const color = require("../functions/colorCodes");
 module.exports = class DatabaseHandler {
   constructor(connectionString) {
     this.cache = new Map();
+    this.userCache = new Map();
     this.guildModel = require("../models/guilds");
+    this.userModel = require("../models/users");
     this.connectionString = connectionString;
   }
 
@@ -15,6 +17,13 @@ module.exports = class DatabaseHandler {
         for (const g of guilds) {
           if (!client?.guilds?.has(g?.id)) {
             this.cache.delete(g?.id);
+          }
+        }
+        
+        const users = this.userCache.values();
+        for (const u of users) {
+          if (!client?.users?.has(u?.userId)) {
+            this.userCache.delete(u?.userId);
           }
         }
       },
@@ -49,6 +58,58 @@ module.exports = class DatabaseHandler {
       .then(() =>
         console.log(color("%", "%6[Mongoose]%7 :: Connected to MongoDB")),
       );
+  }
+
+  async fetchUser(userId, createIfNotFound = false) {
+    const fetched = await this.userModel.findOne({ userId });
+
+    if (fetched) return fetched;
+    if (!fetched && createIfNotFound) {
+      return this.userModel.create({
+        userId,
+        reminders: [],
+        timezone: null,
+      });
+    }
+    return null;
+  }
+
+  async getUser(userId, createIfNotFound = true, force = false) {
+    if (force) return this.fetchUser(userId, createIfNotFound);
+
+    if (this.userCache.has(userId)) {
+      return this.userCache.get(userId);
+    }
+
+    const fetched = await this.fetchUser(userId, createIfNotFound);
+    if (fetched) {
+      this.userCache.set(userId, fetched?.toObject() ?? fetched);
+      return this.userCache.get(userId);
+    }
+    return null;
+  }
+
+  async updateUser(userId, data = {}, createIfNotFound = false) {
+    let oldData = await this.getUser(userId, createIfNotFound);
+
+    if (oldData) {
+      if (oldData?._doc) oldData = oldData?._doc;
+
+      data = { ...oldData, ...data };
+      this.userCache.set(userId, data);
+
+      return this.userModel.updateOne({ userId }, data);
+    }
+    return null;
+  }
+
+  async deleteUser(userId, onlyCache = false) {
+    if (this.userCache.has(userId)) this.userCache.delete(userId);
+    return !onlyCache ? this.userModel.deleteMany({ userId }) : true;
+  }
+
+  async getAllUsers() {
+    return this.userModel.find();
   }
 
   async fetchGuild(guildId, createIfNotFound = false) {

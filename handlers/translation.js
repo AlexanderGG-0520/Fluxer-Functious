@@ -5,7 +5,7 @@ class TranslationHandler {
         this.availableLanguages = languages ?? [
             'en_EN',
             'es_ES',
-            //'ar_AR',
+            'ar_AR',
             'pt_BR',
             //'sk_SK',
         ];
@@ -50,11 +50,11 @@ class TranslationHandler {
                 if (!d) continue;
 
                 this.initLanguage(l, d);
-                return "Success"
             } catch (e) {
                 return e.message;
             }
         }
+        return "Success";
     }
 
     get(language, path, data = {}) {

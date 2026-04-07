@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 module.exports = {
   config: {
     name: "language",

@@ -1,30 +1,48 @@
-const { Webhook, EmbedBuilder } = require("@fluxerjs/core");
+const { Webhook, EmbedBuilder } = require("@erinjs/core");
+
 module.exports = async (client, message, userId) => {
   const db = await client.database.getGuild(message.guildId);
-  const userTimezone = db.userTimezones.find((u) => u.userId === userId);
-  message.guild.fetchChannels();
-  
+  if (!db?.timezone?.enabled) return;
+
+  const userData = await client.database.getUser(userId, false);
+  if (!userData?.timezone) return;
+
   const channel = await client.channels.resolve(message.channelId);
-  const msg = await channel.messages.fetch(message.messageId);
-  const convert = client.functions.get("parseTime")(msg.content, userTimezone.timezone);
+  if (!channel) return;
+
+  const msg = await channel.messages.fetch(message.messageId).catch(() => null);
+  if (!msg) return;
+
+  const convert = client.functions.get("parseTime")(msg.content, userData.timezone);
   const user = await client.users.fetch(userId);
-  
+  if (!user) return;
+
+  const displayName = user.globalName || user.username;
+  const avatar = user.displayAvatarURL({ dynamic: true });
+
   try {
-    const webhook = await channel.createWebhook({ name: user?.globalName ? user.globalName : user.username });
+    const webhook = await channel.createWebhook({ name: displayName });
     const found = Webhook.fromToken(client, webhook.id, webhook.token);
+
     await found.send({
       content: convert.message,
-      username: user?.globalName ? user.globalName : user.username,
-      avatar_url: user.displayAvatarURL({ dynamic: true }),
-    }).then(async () => { try { await msg.delete(); } catch {} })
-    
+      username: displayName,
+      avatar_url: avatar,
+    });
+
+    await msg.delete().catch(() => {});
     await found.delete();
-  } catch(e) { 
-    channel.send({
-      embeds: [new EmbedBuilder()
-        .setColor("#A52F05")
-        .setAuthor({ name: user?.globalName ? user.globalName : user.username, iconURL: user.displayAvatarURL({ dynamic: true }) })
-        .setDescription(convert.message)]
-    }).then(async () => { try { await msg.delete(); } catch { } });
- }
-}
+  } catch (e) {
+    await channel
+      .send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor("#A52F05")
+            .setAuthor({ name: displayName, iconURL: avatar })
+            .setDescription(convert.message),
+        ],
+      })
+      .then(() => msg.delete().catch(() => {}))
+      .catch(() => {});
+  }
+};

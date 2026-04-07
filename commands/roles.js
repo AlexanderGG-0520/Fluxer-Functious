@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 const regex = /^<#(?<id>[A-Z0-9]+)>/;
 const pick = ["content", "embed"];
 const Paginator = require("../functions/pagination");
@@ -168,14 +168,13 @@ module.exports = {
               } else {
                 await message.channel.send({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.roles.react", {
                   "example": `\`\`\`
-  **This is an example message**
-  
-  Color Roles:
-  {role:Blue}
-  {role:Red}
-  {role:Purple}
-  \`\`\`
-  ` })}\n\n\`\`\`txt\n${startText}\n\`\`\``).setColor(`#A52F05`)] })
+**This is an example message**
+
+Color Roles:
+{role:Blue}
+{role:Red}
+{role:Purple}
+\`\`\`` })}\n\n\`\`\`txt\n${startText}\n\`\`\``).setColor(`#A52F05`)] })
                   .then(async (msg) => {
                     await msg.react(client.config.emojis.check);
                     await msg.react(client.config.emojis.cross);

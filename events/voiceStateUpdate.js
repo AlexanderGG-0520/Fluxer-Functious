@@ -1,4 +1,4 @@
-const { PermissionFlags, resolvePermissionsToBitfield } = require('@fluxerjs/core');
+const { PermissionFlags, resolvePermissionsToBitfield } = require('@erinjs/core');
 module.exports = async (client, oldState, newState) => {
   const state = newState ?? oldState;
   const userId = state?.userId ?? state?.user_id ?? state?.member?.user?.id;

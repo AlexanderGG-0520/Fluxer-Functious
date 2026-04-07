@@ -1,24 +1,94 @@
 const db = require("../models/polls");
 const Polls = require("./poll");
-async function checkPolls(client) {
-    let polls = await db.find();
-    if (!polls || polls.length === 0) return;
-    let i = 0;
-    for (let poll of polls) {
-        i++
-        setTimeout(async () => {
-            const time = poll.now - (Date.now() - poll.time), users = poll.users, avatars = poll.avatars, votes = poll.votes, desc = poll.desc, name = poll.name, names = poll.options, owner = poll.owner, lang = poll.lang;
-            const newPoll = new Polls({ time, client, name: { name: name, description: desc }, options: names, votes: votes, users: users, avatars: avatars, owner: owner, lang: lang })
 
-            try {
-              const msg = (await client.channels.resolve(poll.channelId))?.messages?.fetch(poll.messageId);
-              if (msg) newPoll.start(msg, newPoll);
-              polls.deleteOne({ messageId: poll.messageId });
-            } catch (e) { 
-              //await db.findOneAndDelete({ messageId: poll.messageId })
+async function checkPolls(client) {
+  const polls = await db.find({ ended: false });
+  if (!polls?.length) return;
+
+  for (let i = 0; i < polls.length; i++) {
+    const poll = polls[i];
+    const delay = i * 700;
+
+    setTimeout(async () => {
+      try {
+        const channel = await client.channels.resolve(poll.channelId);
+        if (!channel) return;
+
+        const msg = await channel.messages?.fetch(poll.messageId).catch(() => null);
+        if (!msg) return;
+
+        const dueTime = poll.now + poll.time;
+        const now = Date.now();
+
+        if (dueTime <= now) {
+          await db.findOneAndUpdate({ messageId: poll.messageId }, { ended: true });
+          const newPoll = new Polls({
+            time: 0,
+            client,
+            name: { name: poll.name, description: poll.desc },
+            options: poll.options,
+            votes: poll.votes,
+            users: poll.users,
+            avatars: poll.avatars,
+            owner: poll.owner,
+            lang: poll.lang,
+          });
+          await newPoll.update();
+
+          let tooMuch = [];
+          if (poll.desc?.length > 80) tooMuch.push(`**${client.translate.get(poll.lang, "Events.messageReactionRemove.title")}**: ${poll.desc}`)
+          poll.options?.name?.filter(e => e).forEach((e, i) => {
+            i++
+            if (e.length > 70) {
+              tooMuch.push(`**${i}.** ${e}`)
             }
-        }, i * 700);
-    }
+          });
+
+          const pollImage = await fetch(`${process.env.CDN}/api/upload`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              apikey: process.env.CDN_KEY,
+              image: newPoll.canvas.toDataURL('image/png'),
+              timeframe: 0,
+              messageId: poll.messageId,
+              last: true
+            })
+          }).then((i) => i.json()).catch(() => null);
+
+          if (pollImage?.url) {
+            await msg.edit({
+              embeds: [{
+                setDescription: () => `${client.translate.get(poll.lang, "Functions.poll.end")}${tooMuch.length > 0 ? `\n\n${tooMuch.map(e => e).join("\n")}` : ""}\n_ _`,
+                setImage: () => `${process.env.CDN}${pollImage.url}`,
+                setColor: () => `#A52F05`,
+              }]
+            });
+          }
+          await msg.reactions?.removeAll().catch(() => { });
+          return;
+        }
+
+        await db.deleteOne({ messageId: poll.messageId });
+
+        const newPoll = new Polls({
+          time: poll.time,
+          client,
+          name: { name: poll.name, description: poll.desc },
+          options: poll.options,
+          votes: poll.votes,
+          users: poll.users,
+          avatars: poll.avatars,
+          owner: poll.owner,
+          lang: poll.lang,
+        });
+
+        newPoll.start(msg, newPoll);
+      } catch { }
+    }, delay);
+  }
 }
 
 module.exports = checkPolls;

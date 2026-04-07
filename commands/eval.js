@@ -1,5 +1,6 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 const { inspect } = require("util");
+const Paginator = require("../functions/pagination");
 
 module.exports = {
   config: {
@@ -77,8 +78,8 @@ module.exports = {
         return;
       }
 
+      const pages = [];
       let remaining = output;
-      let isFirst = true;
 
       while (remaining.length > 0) {
         let chunk = remaining.slice(0, MAX_SAFE);
@@ -87,22 +88,26 @@ module.exports = {
           chunk = chunk.slice(0, lastNewline);
         }
 
-        let toSend = prefix + chunk + suffix;
+        let content = prefix + chunk + suffix;
 
-        if (toSend.length > 2000) {
+        if (content.length > 2000) {
           chunk = chunk.slice(0, 1750 - prefix.length - suffix.length);
-          toSend = prefix + chunk + suffix;
+          content = prefix + chunk + suffix;
         }
 
-        if (isFirst) {
-          await message.reply(toSend, false);
-          isFirst = false;
-        } else {
-          await message.channel.send(toSend);
-        }
+        const embed = new EmbedBuilder().setDescription(content).setColor("#00FF00");
+        pages.push(embed);
 
         remaining = remaining.slice(chunk.length);
       }
+
+      const paginator = new Paginator({
+        user: message.author.id,
+        client,
+        timeout: 60000,
+      });
+
+      paginator.add(pages).start(message.channel);
     } catch (e) {
       const errMsg = (e?.stack || e?.message || "Unknown Error").slice(0, 1985);
       await message.reply("```js\n" + errMsg + "```", false);

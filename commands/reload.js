@@ -10,22 +10,6 @@ module.exports = {
     run: async (client, message, args) => {     
         if (!client.config.owners.includes(message.author.id)) return;
         if (!args[0]) return message.reply("Provide either a category, command, event, function, 'languages', or 'reactionHandlers' to reload.", false)
-        if (args[0] === "category") {
-            let error = [];
-            let success = [];
-
-            if (!args[1]) return message.reply("Provide a category's name to reload it.", false)
-
-            client.commands.filter(c => c.config.category === args[1]).map(cc => {
-                Reload(client, cc.config.category, cc.config.name, args[2])
-
-                let check = client.reloadCommand(args[1], cc.config.name)
-                if (check.includes("Error")) return error.push(check)
-                else if (check.includes("Reloaded command:")) return success.push("1")
-            })
- 
-            return message.reply(`\`\`\`css\nSuccessful Commands: ${success.length}\nErrored Commands: ${error.length} ${error.length > 0 ? "\n" + error.map(c => c).join("\n") : " "}`, false)
-        }
         if (args[0] === "languages") {
             return message.reply(Reload(client, "languages"), false)
         }

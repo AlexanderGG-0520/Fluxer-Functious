@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 const getRoles = require('../functions/getRoles');
 
 module.exports = {

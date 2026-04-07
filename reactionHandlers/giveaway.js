@@ -1,80 +1,108 @@
-const { EmbedBuilder } = require("@fluxerjs/core");
+const { EmbedBuilder } = require("@erinjs/core");
 
 module.exports = async (client, message, userId, db, emojiId, event = "add") => {
-    if (event === "remove") {
-        if (client.reactions.get(userId)) return;
-        if (emojiId === client.config.emojis.confetti && !db.ended) {
-            if (!db.users.find(u => u.userID === userId)) return;
-            const filtered = db.users.filter(object => object.userID != userId)
-            db.users = filtered;
-            const filtered2 = db.picking.filter(object => object.userID != userId)
-            db.picking = filtered2;
-            db.save();
+  const lang = db.lang || db.language;
 
-            client.reactions.set(userId, Date.now() + 3000)
-            setTimeout(() => client.reactions.delete(userId), 3000)
+  if (emojiId !== client.config.emojis.confetti && emojiId !== client.config.emojis.stop) return;
+  if (db.ended) return;
+  if (client.reactions.get(userId)) return;
 
-            client.users.get(userId)?.createDM().then(dm => dm.send(`${client.translate.get(db.language, "Events.messageReactionRemove.left")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(db.language, "Events.messageReactionRemove.left2")} **${db.users.length}** ${client.translate.get(db.language, "Events.messageReactionRemove.left3")}!`)).catch(() => { });
-        }
-        return;
+  if (emojiId === client.config.emojis.stop && db.owner === userId) {
+    const endDate = Date.now();
+
+    if (db.users.length === 0) {
+      const noUsers = new EmbedBuilder()
+        .setColor("#A52F05")
+        .setTitle(db.prize)
+        .setDescription(
+          `${client.translate.get(lang, "Events.messageReactionAdd.early")}\n${client.translate.get(lang, "Events.messageReactionAdd.endNone")}!\n\n${client.translate.get(lang, "Events.messageReactionAdd.ended")}: <t:${Math.floor(endDate / 1000)}:R>\n${client.translate.get(lang, "Commands.giveaway.hosted")}: <@${db.owner}>\n${client.translate.get(lang, "Events.messageReactionAdd.winnersNone")}${db.requirement ? `\n\n${client.translate.get(lang, "Events.messageReactionAdd.reqs")}:\n${db.requirement}` : ""}`,
+        );
+
+      await db.updateOne({ ended: true, endDate });
+
+      const channel = await client.channels.resolve(db.channelId);
+      const foundMsg = await channel?.messages?.fetch(db.messageId).catch(() => null);
+      await foundMsg?.removeAllReactions().catch(() => { });
+      return foundMsg?.edit({ embeds: [noUsers] });
     }
 
-    if (emojiId === client.config.emojis.confetti && !db.ended) {
-        if (client.reactions.get(userId)) return;
-        if (db.users.find(u => u.userID === userId)) return;
+    const winners = [];
+    const pool = [...db.picking];
 
-        db.users.push({ userID: userId });
-        db.picking.push({ userID: userId });
-        await db.save();
-
-        client.reactions.set(userId, Date.now() + 3000);
-        setTimeout(() => client.reactions.delete(userId), 3000);
-
-        client.users.get(userId)?.createDM().then(dm =>
-            dm.send(`${client.translate.get(db.lang, "Events.messageReactionAdd.joined")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(db.lang, "Events.messageReactionAdd.joined2")} **${db.users.length}** ${client.translate.get(db.lang, "Events.messageReactionAdd.joined3")}`)
-        ).catch(() => {});
-        return;
+    for (let i = 0; i < db.winners && pool.length > 0; i++) {
+      const idx = Math.floor(Math.random() * pool.length);
+      winners.push(pool.splice(idx, 1)[0]);
     }
 
-    if (emojiId === client.config.emojis.stop && db.owner === userId && !db.ended) {
-        const endDate = Date.now();
+    db.pickedWinners = winners.map((w) => ({ id: w.userID }));
 
-        if (db.users.length === 0) {
-            const noUsers = new EmbedBuilder()
-                .setColor("#A52F05")
-                .setTitle(db.prize)
-                .setDescription(`${client.translate.get(db.lang, "Events.messageReactionAdd.early")}\n${client.translate.get(db.lang, "Events.messageReactionAdd.endNone")}!\n\n${client.translate.get(db.language, "Events.messageReactionAdd.ended")}: <t:${Math.floor(endDate / 1000)}:R>\n${client.translate.get(db.language, "Commands.giveaway.hosted")}: <@${db.owner}>\n${client.translate.get(db.lang, "Events.messageReactionAdd.winnersNone")}${db.requirement ? `\n\n${client.translate.get(db.lang, "Events.messageReactionAdd.reqs")}:\n${db.requirement}` : ""}`);
+    await db.updateOne({
+      ended: true,
+      endDate,
+      pickedWinners: db.pickedWinners,
+    });
 
-            await db.updateOne({ ended: true, endDate });
-            await db.save();
-            const foundMsg = await (await client.channels.resolve(db.channelId))?.messages?.fetch(db.messageId);
-            return foundMsg?.edit({ embeds: [noUsers] });
-        }
+    const winnersEmbed = new EmbedBuilder()
+      .setColor("#A52F05")
+      .setTitle(db.prize)
+      .setDescription(
+        `${client.translate.get(lang, "Events.messageReactionAdd.early")}\n\n${client.translate.get(lang, "Events.messageReactionAdd.ended")}: <t:${Math.floor(endDate / 1000)}:R>\n${client.translate.get(lang, "Commands.giveaway.hosted")}: <@${db.owner}>\n${client.translate.get(lang, "Events.messageReactionAdd.partici")}: ${db.users.length}\n${client.translate.get(lang, "Events.messageReactionAdd.winners")}: ${db.pickedWinners.length ? db.pickedWinners.map((w) => `<@${w.id}>`).join(", ") : client.translate.get(lang, "Events.messageReactionAdd.none")}${db.requirement ? `\n${client.translate.get(lang, "Events.messageReactionAdd.reqs")}: ${db.requirement}` : ""}`,
+      );
 
-        for (let i = 0; i < db.winners; i++) {
-            const winner = db.picking[Math.floor(Math.random() * db.picking.length)];
-            if (winner) {
-                db.picking = db.picking.filter(obj => obj.userID !== winner.userID);
-                db.pickedWinners.push({ id: winner.userID });
-            }
-        }
+    const channel = await client.channels.resolve(db.channelId);
+    const foundMsg = await channel?.messages?.fetch(db.messageId).catch(() => null);
+    await foundMsg?.removeAllReactions().catch(() => { });
+    await foundMsg?.edit({ embeds: [winnersEmbed] }).catch(() => { });
 
-        await db.updateOne({ ended: true, endDate });
-        await db.save();
+    channel
+      ?.send({
+        content: `${client.translate.get(lang, "Events.messageReactionAdd.congrats")} ${db.pickedWinners.map((w) => `<@${w.id}>`).join(", ")}! ${client.translate.get(lang, "Events.messageReactionAdd.youWon")} **${db.prize}**\nhttps://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId}`,
+      })
+      .catch(() => {});
 
-        const winnersEmbed = new EmbedBuilder()
-            .setColor("#A52F05")
-            .setTitle(db.prize)
-            .setDescription(`${client.translate.get(db.lang, "Events.messageReactionAdd.early")}\n\n${client.translate.get(db.lang, "Events.messageReactionAdd.ended")}: <t:${Math.floor(endDate / 1000)}:R>\n${client.translate.get(db.language, "Commands.giveaway.hosted")}: <@${db.owner}>\n${client.translate.get(db.lang, "Events.messageReactionAdd.partici")}: ${db.users.length}\n${client.translate.get(db.lang, "Events.messageReactionAdd.winners")}: ${db.pickedWinners.length ? db.pickedWinners.map(w => `<@${w.id}>`).join(", ") : client.translate.get(db.lang, "Events.messageReactionAdd.none")}${db.requirement ? `\n${client.translate.get(db.lang, "Events.messageReactionAdd.reqs")}: ${db.requirement}` : ""}`);
+    client.reactions.set(userId, Date.now() + 3000);
+    setTimeout(() => client.reactions.delete(userId), 3000);
+    return;
+  }
 
-        const foundChannel = await client.channels.resolve(db.channelId);
-        const foundMsg = await foundChannel?.messages?.fetch(db.messageId);
-        foundMsg?.edit({ embeds: [winnersEmbed] }).catch(() => {});
-        foundChannel?.send({
-            content: `${client.translate.get(db.lang, "Events.messageReactionAdd.congrats")} ${db.pickedWinners.map(w => `<@${w.id}>`).join(", ")}! ${client.translate.get(db.lang, "Events.messageReactionAdd.youWon")} **${db.prize}**\nhttps://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId}`
-        }).catch(() => {});
+  const userEntry = db.users.find((u) => u.userID === userId);
+  if (event === "remove") {
+    if (!userEntry) return;
 
-        client.reactions.set(userId, Date.now() + 3000);
-        setTimeout(() => client.reactions.delete(userId), 3000);
-    }
+    db.users = db.users.filter((u) => u.userID !== userId);
+    db.picking = db.picking.filter((u) => u.userID !== userId);
+    await db.save();
+
+    client.reactions.set(userId, Date.now() + 3000);
+    setTimeout(() => client.reactions.delete(userId), 3000);
+
+    client.users
+      .get(userId)
+      ?.createDM()
+      .then((dm) =>
+        dm.send(
+          `${client.translate.get(lang, "Events.messageReactionRemove.left")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(lang, "Events.messageReactionRemove.left2")} **${db.users.length}** ${client.translate.get(lang, "Events.messageReactionRemove.left3")}!`,
+        ),
+      )
+      .catch(() => {});
+    return;
+  }
+
+  if (userEntry) return;
+  db.users.push({ userID: userId });
+  db.picking.push({ userID: userId });
+  await db.save();
+
+  client.reactions.set(userId, Date.now() + 3000);
+  setTimeout(() => client.reactions.delete(userId), 3000);
+
+  client.users
+    .get(userId)
+    ?.createDM()
+    .then((dm) =>
+      dm.send(
+        `${client.translate.get(lang, "Events.messageReactionAdd.joined")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(lang, "Events.messageReactionAdd.joined2")} **${db.users.length}** ${client.translate.get(lang, "Events.messageReactionAdd.joined3")}`,
+      ),
+    )
+    .catch(() => {});
 };

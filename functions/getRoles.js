@@ -1,17 +1,21 @@
-const { EmbedBuilder } = require('@fluxerjs/core');
+const { EmbedBuilder } = require('@erinjs/core');
 const emoji = require('node-emoji');
 
 async function getRoles(roles, message, client, db, format = true, position = true, toDelete = true) {
   try { message.guild.fetchRoles(); } catch {}
   const me = (message.guild?.members.me ?? (message.guild ? await message.guild.members.fetchMe() : null));
   const processedRoles = roles.map(r => emoji.emojify(r));
-  const roleIds = []
+  const roleIds = [];
+
   let newRoles = processedRoles.map((processed) => {
-    return [...message.guild.roles]
-    .map((r) => r)
-    .find((role) => processed.toLowerCase() === role[1]?.name?.toLowerCase());
+    const stripped = processed.replace(/^<@&(\d+)>$/, '$1');
+    const isId = /^\d+$/.test(stripped);
+
+    const guildRoles = [...message.guild.roles].map((r) => r);
+    if (isId) return guildRoles.find((role) => role[0] === stripped || role[1]?.id === stripped);
+    return guildRoles.find((role) => stripped.toLowerCase() === role[1]?.name?.toLowerCase());
   });
-  
+
   newRoles.map((r) => roleIds.push(r));
 
   if (roleIds.map((r) => !r).includes(true)) {

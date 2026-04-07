@@ -1,7 +1,7 @@
-const { EmbedBuilder } = require('@fluxerjs/core');
+const { EmbedBuilder } = require('@erinjs/core');
 const PollDB = require("../models/polls");
 const Canvas = require('canvas');
-const format = `${(new Date().getMonth() + 1) < 10 ? `0${new Date().getMonth() + 1}` : new Date().getMonth() + 1}/${new Date().getDate()}/${new Date().getFullYear()} ${new Date().getHours()}:${(new Date().getMinutes() < 10 ? '0' : '') + new Date().getMinutes()}`;
+//const format = `${(new Date().getMonth() + 1) < 10 ? `0${new Date().getMonth() + 1}` : new Date().getMonth() + 1}/${new Date().getDate()}/${new Date().getFullYear()} ${new Date().getHours()}:${(new Date().getMinutes() < 10 ? '0' : '') + new Date().getMinutes()}`;
 class Polls {
     constructor({ time, client, name, options, users, avatars, votes, owner, lang }) {
         this.client = client;
@@ -51,10 +51,10 @@ class Polls {
           try {
             const newMsg = await (await this.client.channels.resolve(polls.channelId))?.messages?.fetch(polls.messageId)
             newMsg.edit({ embeds: [new EmbedBuilder().setDescription(`${this.client.translate.get(this.lang, "Functions.poll.end")}${tooMuch.length > 0 ? `\n\n${tooMuch.map(e => e).join("\n")}` : ""}\n_ _`).setImage(`${process.env.CDN}${pollImage.url}`).setColor(`#A52F05`)] });
-            newMsg.removeAllReactions();
-            this.client.polls.delete(polls.messageId);
-          } catch {}
-            await PollDB.findOneAndDelete({ messageId: message.id });
+            newMsg.removeAllReactions().catch(() => { })
+          } catch { }
+          this.client.polls.delete(polls.messageId);
+          await PollDB.findOneAndUpdate({ messageId: message.id }, { ended: true });
         }, this.time);
       
         if (first) {
@@ -72,23 +72,24 @@ class Polls {
           }).then((i) => i.json())
           
           const newMsg = await (await this.client.channels.resolve(message.channelId))?.messages?.fetch(message.id)
-          newMsg.edit({ embeds: [new EmbedBuilder().setDescription(`${first.tooMuch.length > 0 ? `\n\n${first.tooMuch.map(e => e).join("\n")}` : ""}\n_ _`).setImage(`${process.env.CDN}${pollImage.url}`).setColor(`#A52F05`)] }).catch(() => { })
+          newMsg.edit({ embeds: [new EmbedBuilder().setDescription(`${this.client.translate.get(this.lang, "Commands.giveaway.time")}: <t:${Math.floor((this.time + Date.now()) / 1000)}:R>${first.tooMuch.length > 0 ? `\n\n${first.tooMuch.map(e => e).join("\n")}` : ""}\n_ _`).setImage(`${process.env.CDN}${pollImage.url}`).setColor(`#A52F05`)] }).catch(() => { })
         }
 
         if (this.time < 0) return;
         await (new PollDB({
-            owner: this.owner,
-            channelId: message.channelId,
-            messageId: message.id,
-            avatars: this.avatars,
-            users: this.users,
-            votes: this.votes,
-            name: this.options.name,
-            desc: this.options.description,
-            options: this.voteOptions,
-            time: this.time,
-            lang: this.lang,
-            now: Date.now(),
+          owner: this.owner,
+          serverId: message.guildId,
+          channelId: message.channelId,
+          messageId: message.id,
+          avatars: this.avatars,
+          users: this.users,
+          votes: this.votes,
+          name: this.options.name,
+          desc: this.options.description,
+          options: this.voteOptions,
+          time: this.time,
+          lang: this.lang,
+          now: Date.now(),
         }).save());
     }
 
@@ -152,7 +153,7 @@ class Polls {
 
         ctx.fillStyle = "#4E535A";
         ctx.font = `normal 12px Sans-Serif`;
-        ctx.fillText(name, padding, padding + 2 + nameHeight / 2); // name
+        //ctx.fillText(name, padding, padding + 2 + nameHeight / 2); // name
 
         ctx.fillStyle = "#FFFFFF";
         ctx.font = `normal 17px Sans-Serif`;
@@ -295,11 +296,11 @@ class Polls {
         }
 
         // Date
-        let date = format;
-        metrics = ctx.measureText(date);
-        h = this.textHeight(date, ctx, metrics);
-        ctx.fillText(date, width - 15 - metrics.width, rad + h);
-        ctx.restore();
+        // let date = format;
+        // metrics = ctx.measureText(date);
+        // h = this.textHeight(date, ctx, metrics);
+        // ctx.fillText(date, width - 15 - metrics.width, rad + h);
+        // ctx.restore();
     }
 }
 

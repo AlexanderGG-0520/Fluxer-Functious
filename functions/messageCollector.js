@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('@fluxerjs/core');
+const { EmbedBuilder } = require('@erinjs/core');
 const getRoles = require('./getRoles');
 async function Collector(client, message, db) {
   if (message.content === `${db.prefix}roles stop`) {

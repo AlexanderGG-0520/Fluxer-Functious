@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 const emoji = require('node-emoji');
 
 const EMBED_COLORS = {
@@ -152,7 +152,7 @@ module.exports = {
             if (channel) await channel.delete();
           }
         }
-      } catch { };
+      } catch  { };
       
       return await client.database.updateGuild(message.guildId, {
         parentChannel: null,
@@ -166,7 +166,7 @@ module.exports = {
       try {
         let category;
         if (db.config?.customParent) {
-          category = message.guild.channels.resolve(db.config.customParent);
+          category = await client.channels.resolve(db.config.customParent);
           if (!category || category.type !== 4) return null;
         } else {
           category = await message.guild.createChannel({
@@ -344,7 +344,7 @@ module.exports = {
                   name: client.translate.get(db.language, "Commands.tempchannels.joinCreate"),
                   parent_id: category.id,
                   bitrate: 64000,
-                }).catch(() => null);
+                }) //catch
 
                 if (!voiceChannel) {
                   return message.reply({
@@ -357,6 +357,7 @@ module.exports = {
                 }
               } else {
                 const vc = await enableTemps();
+                console.log(vc)
                 if (!vc) return message.reply({ embeds: [createEmbed(EMBED_COLORS.ERROR, null, client.translate.get(db.language, "Commands.tempchannels.failedSetup"))] });
                 ({ category, voiceChannel } = vc);
               }

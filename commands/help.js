@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require("@fluxerjs/core")
+const { EmbedBuilder } = require("@erinjs/core")
 module.exports = {
     config: {
         name: "help",

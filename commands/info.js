@@ -1,6 +1,6 @@
-const { EmbedBuilder } = require("@fluxerjs/core");
+const { EmbedBuilder } = require("@erinjs/core");
 const Giveaway = require("../models/giveaways");
-const SavedPolls = require("../models/savedPolls");
+const Polls = require("../models/polls");
 const { dependencies } = require("../package.json");
 module.exports = {
   config: {
@@ -26,8 +26,8 @@ module.exports = {
 
     async function Database() {
       let beforeCall = Date.now();
-      const polls = await SavedPolls.find();
-      return { ping: Date.now() - beforeCall, polls };
+      const pollCount = await Polls.countDocuments();
+      return { ping: Date.now() - beforeCall, pollCount };
     }
 
     async function botPing() {
@@ -41,9 +41,12 @@ module.exports = {
     }
 
     const dbPing = await Database();
+    const gatewayPing = await botPing();
+    const giveawayCount = await Giveaway.countDocuments();
+    
     const embed = new EmbedBuilder()
       .setDescription(
-        `**${client.translate.get(db.language, "Commands.info.start")}**\n${client.translate.get(db.language, "Commands.info.servers")}: \`${client.guilds.size.toLocaleString()}\`\n${client.translate.get(db.language, "Commands.info.giveaways")}: \`${(await Giveaway.find()).length.toLocaleString()}\`\n${client.translate.get(db.language, "Commands.info.polls")}: \`${dbPing.polls.length.toLocaleString()}\`\n${client.translate.get(db.language, "Commands.info.uptime")}: \`${unixstamp}\`\n\n${client.translate.get(db.language, "Commands.info.ping")}: \`${!isNaN(await botPing()) ? `${await botPing()}ms` : "502 Bad Gateway"}\`\n${client.translate.get(db.language, "Commands.info.memory")}: \`${memory()}mb\`\n${client.translate.get(db.language, "Commands.info.database")}: \`${dbPing.ping}ms\`\n${client.translate.get(db.language, "Commands.info.library")}: [Fluxer.js](https://fluxer.js.org) | ${dependencies["@fluxerjs/core"]}\n\n${client.translate.get(db.language, "Commands.info.links")}\n[${client.translate.get(db.language, "Commands.info.links2")}](https://web.fluxer.app/oauth2/authorize?client_id=1475548817821799084&scope=bot&permissions=13510799704222800) | [${client.translate.get(db.language, "Commands.info.links3")}](https://fluxer.gg/YnINU09E) | [GitHub](https://github.com/forgetfulskybro/Fluxer-Functious) | [Crowdin](https://crowdin.com/project/functious)`,
+        `**${client.translate.get(db.language, "Commands.info.start")}**\n${client.translate.get(db.language, "Commands.info.servers")}: \`${client.guilds.size.toLocaleString()}\`\n${client.translate.get(db.language, "Commands.info.giveaways")}: \`${giveawayCount.toLocaleString()}\`\n${client.translate.get(db.language, "Commands.info.polls")}: \`${dbPing.pollCount.toLocaleString()}\`\n${client.translate.get(db.language, "Commands.info.uptime")}: \`${unixstamp}\`\n\n${client.translate.get(db.language, "Commands.info.ping")}: \`${!isNaN(gatewayPing) ? `${gatewayPing}ms` : "502 Bad Gateway"}\`\n${client.translate.get(db.language, "Commands.info.memory")}: \`${memory()}mb\`\n${client.translate.get(db.language, "Commands.info.database")}: \`${dbPing.ping}ms\`\n${client.translate.get(db.language, "Commands.info.library")}: [Erin.js](https://erin.js.org) | ${dependencies["@erinjs/core"]}\n\n${client.translate.get(db.language, "Commands.info.links")}\n[${client.translate.get(db.language, "Commands.info.links2")}](https://web.fluxer.app/oauth2/authorize?client_id=1475548817821799084&scope=bot&permissions=13510799704222800) | [${client.translate.get(db.language, "Commands.info.links3")}](https://fluxer.gg/YnINU09E) | [GitHub](https://github.com/forgetfulskybro/Fluxer-Functious) | [Crowdin](https://crowdin.com/project/functious)`,
       )
       .setColor(`#A52F05`);
 

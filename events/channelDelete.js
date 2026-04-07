@@ -1,3 +1,6 @@
+const Giveaways = require("../models/giveaways");
+const Polls = require("../models/polls");
+
 module.exports = async (client, channel) => {
   const guildId = channel.guildId;
   const db = await client.database.getGuild(guildId);
@@ -12,4 +15,15 @@ module.exports = async (client, channel) => {
       config: null,
     });
   }
+
+  const rolesInChannel = db.roles.filter(r => r.chanId === channel.id);
+  if (rolesInChannel.length > 0) {
+    await client.database.updateGuild(guildId, {
+      roles: db.roles.filter(r => r.chanId !== channel.id),
+    });
+  }
+
+  await Giveaways.deleteMany({ serverId: guildId, channelId: channel.id });
+
+  await Polls.deleteMany({ serverId: guildId, channelId: channel.id });
 };

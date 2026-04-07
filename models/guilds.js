@@ -23,6 +23,8 @@ const guilds = new Schema({
     manage: { type: Boolean, default: false },
     customParent: { type: String, default: null },
   },
+  // getInvites: { type: Boolean, default: false },
+  // invites: { type: Array, default: [] },
 });
 
 module.exports = model("guilds", guilds);

@@ -1,5 +1,5 @@
 const Giveaways = require("../models/giveaways");
-const { EmbedBuilder } = require("@fluxerjs/core");
+const { EmbedBuilder } = require("@erinjs/core");
 async function giveawaysEnd(client) {
   setInterval(async () => {
     let giveaways = await Giveaways.find({ ended: false });
@@ -57,12 +57,14 @@ async function giveawaysEnd(client) {
                 `${client.translate.get(db.lang, "Functions.giveawaysEnd.ended")}: <t:${Math.floor(endDate / 1000)}:R>\n${client.translate.get(db.language, "Commands.giveaway.hosted")}: <@${db.owner}>\n${client.translate.get(db.lang, "Functions.giveawaysEnd.partici")}: ${db.users.length}\n${client.translate.get(db.lang, "Functions.giveawaysEnd.winners")}: ${db.pickedWinners.map((w) => `<@${w.id}>`).join(", ")}${db.requirement ? `\n\n${client.translate.get(db.lang, "Functions.giveawaysEnd.reqs")}:\n${db.requirement}` : ``}`,
               );
 
-            const foundChannel = await client.channels.resolve(db.channelId);
-            foundChannel
-              ?.send({
-                content: `${client.translate.get(db.lang, "Functions.giveawaysEnd.congrats")} ${db.pickedWinners.map((w) => `<@${w.id}>`).join(", ")}! ${client.translate.get(db.lang, "Functions.giveawaysEnd.youWon")} **${db.prize}**\nhttps://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId}`,
-              })
-              .catch(() => {});
+            try {
+              const foundChannel = await client.channels.resolve(db.channelId);
+              foundChannel
+                ?.send({
+                  content: `${client.translate.get(db.lang, "Functions.giveawaysEnd.congrats")} ${db.pickedWinners.map((w) => `<@${w.id}>`).join(", ")}! ${client.translate.get(db.lang, "Functions.giveawaysEnd.youWon")} **${db.prize}**\nhttps://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId}`,
+                })
+                .catch(() => {});
+            } catch {}
 
             try {
               const foundMsg = await foundChannel?.messages?.fetch(

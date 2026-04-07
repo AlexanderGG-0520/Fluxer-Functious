@@ -1,4 +1,5 @@
-const { EmbedBuilder, PermissionFlags } = require("@fluxerjs/core");
+const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
+const getMember = require("../functions/getMember");
 
 function isValid(tz) {
   if (!Intl || !Intl.DateTimeFormat().resolvedOptions().timeZone) {
@@ -19,41 +20,6 @@ function dateType(tz) {
 
   if (text.length === 2) return true;
   return false;
-}
-
-async function findMember(guild, query) {
-  if (!query) return null;
-  
-  const isIdQuery = /^\d{17,19}$/.test(query);
-  const mentionMatch = query.match(/^<@!?(\d+)>$/);
-  const targetId = mentionMatch ? mentionMatch[1] : isIdQuery ? query : null;
-  
-  if (targetId) {
-    const cachedMember = guild.members.get(targetId);
-    if (cachedMember) return cachedMember;
-  }
-  
-  const byDisplayName = guild.members.find(m => m.displayName?.toLowerCase() === query.toLowerCase());
-  if (byDisplayName) return byDisplayName;
-  
-  const byUsername = guild.members.find(m => m.user?.username?.toLowerCase() === query.toLowerCase());
-  if (byUsername) return byUsername;
-  
-  const partialDisplay = guild.members.find(m => m.displayName?.toLowerCase().includes(query.toLowerCase()));
-  if (partialDisplay) return partialDisplay;
-  
-  const partialUsername = guild.members.find(m => m.user?.username?.toLowerCase().includes(query.toLowerCase()));
-  if (partialUsername) return partialUsername;
-  
-  if (targetId) {
-    const fetchedMember = await guild.fetchMember(targetId).catch(() => null);
-    if (fetchedMember) return fetchedMember;
-    
-    const fetchedUser = await guild.client.users.fetch(targetId).catch(() => null);
-    if (fetchedUser) return { user: fetchedUser, id: fetchedUser.id, displayName: fetchedUser.username, userNotInGuild: true };
-  }
-  
-  return null;
 }
 
 function getGMTOffset(timezone) {
@@ -148,7 +114,7 @@ module.exports = {
           let targetUserId = message.author.id;
           
           if (query) {
-            targetMember = await findMember(message.guild, query);
+            targetMember = await getMember(message.guild, query);
             if (!targetMember) {
               return message.reply({
                 embeds: [
@@ -160,10 +126,10 @@ module.exports = {
             }
             targetUserId = targetMember.id;
           } else {
-            targetMember = await findMember(message.guild, message.author.id);
+            targetMember = await getMember(message.guild, message.author.id);
           }
           
-          const userTzData = db.userTimezones.find((u) => u.userId === targetUserId);
+          const userTzData = await client.database.getUser(message.author.id, false)
           
           if (!userTzData) {
             const isSelf = targetUserId === message.author.id;
@@ -243,20 +209,33 @@ module.exports = {
         let timezones;
         if (userTimezone) timezones = db.userTimezones.filter((u) => u.userId !== message.author.id);
         else timezones = db.userTimezones;
+        
         await client.database.updateGuild(message.guild.id, { userTimezones: [...timezones, { userId: message.author.id, timezone: args[1] }] });
+        
+        await client.database.updateUser(
+          message.author.id,
+          { timezone: args[1] },
+          true
+        );
+        
         message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.timezone.successSet", { "timezone": `\`${args[1]}\`` })).setColor(`#A52F05`)] });
         break;
       
       case "remove":
-        if (!db.userTimezones.find((u) => u.userId === message.author.id)) return message.reply({
+        const userDataRemove = await client.database.getUser(message.author.id, true);
+        if (!userDataRemove?.timezone) return message.reply({
           embeds: [
           new EmbedBuilder()
             .setColor("#FF0000")
             .setDescription(`${client.translate.get(db.language, "Commands.timezone.noTime", { "timezonepicker": `[${client.translate.get(db.language, "Commands.timezone.timeZonePicker")}](https://zones.arilyn.cc/)` })}:\n\`${db.prefix}timezone set [${client.translate.get(db.language, "Commands.timezone.timezone")}, e.g. America/New_York]\``)]
         });
         
-        const timezone = db.userTimezones.filter((u) => u.userId !== message.author.id);
-        await client.database.updateGuild(message.guild.id, { userTimezones: timezone });
+        await client.database.updateUser(
+          message.author.id,
+          { timezone: null },
+          true
+        );
+        
         message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.timezone.successRemove")).setColor(`#A52F05`)] });
         break;
     }
