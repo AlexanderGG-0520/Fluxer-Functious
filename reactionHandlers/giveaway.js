@@ -65,12 +65,33 @@ module.exports = async (client, message, userId, db, emojiId, event = "add") => 
     return;
   }
 
-  const userEntry = db.users.find((u) => u.userID === userId);
-  if (event === "remove") {
-    if (!userEntry) return;
+  if (emojiId === client.config.emojis.confetti) {
+    const userEntry = db.users.find((u) => u.userID === userId);
+    if (event === "remove") {
+      if (!userEntry) return;
 
-    db.users = db.users.filter((u) => u.userID !== userId);
-    db.picking = db.picking.filter((u) => u.userID !== userId);
+      db.users = db.users.filter((u) => u.userID !== userId);
+      db.picking = db.picking.filter((u) => u.userID !== userId);
+      await db.save();
+
+      client.reactions.set(userId, Date.now() + 3000);
+      setTimeout(() => client.reactions.delete(userId), 3000);
+
+      client.users
+        .get(userId)
+        ?.createDM()
+        .then((dm) =>
+          dm.send(
+            `${client.translate.get(lang, "Events.messageReactionRemove.left")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(lang, "Events.messageReactionRemove.left2")} **${db.users.length}** ${client.translate.get(lang, "Events.messageReactionRemove.left3")}!`,
+          ),
+        )
+        .catch(() => { });
+      return;
+    }
+
+    if (userEntry) return;
+    db.users.push({ userID: userId });
+    db.picking.push({ userID: userId });
     await db.save();
 
     client.reactions.set(userId, Date.now() + 3000);
@@ -81,28 +102,9 @@ module.exports = async (client, message, userId, db, emojiId, event = "add") => 
       ?.createDM()
       .then((dm) =>
         dm.send(
-          `${client.translate.get(lang, "Events.messageReactionRemove.left")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(lang, "Events.messageReactionRemove.left2")} **${db.users.length}** ${client.translate.get(lang, "Events.messageReactionRemove.left3")}!`,
+          `${client.translate.get(lang, "Events.messageReactionAdd.joined")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(lang, "Events.messageReactionAdd.joined2")} **${db.users.length}** ${client.translate.get(lang, "Events.messageReactionAdd.joined3")}`,
         ),
       )
-      .catch(() => {});
-    return;
+      .catch(() => { });
   }
-
-  if (userEntry) return;
-  db.users.push({ userID: userId });
-  db.picking.push({ userID: userId });
-  await db.save();
-
-  client.reactions.set(userId, Date.now() + 3000);
-  setTimeout(() => client.reactions.delete(userId), 3000);
-
-  client.users
-    .get(userId)
-    ?.createDM()
-    .then((dm) =>
-      dm.send(
-        `${client.translate.get(lang, "Events.messageReactionAdd.joined")} [${db.prize}](https://fluxer.app/channels/${db.serverId}/${db.channelId}/${db.messageId})!\n${client.translate.get(lang, "Events.messageReactionAdd.joined2")} **${db.users.length}** ${client.translate.get(lang, "Events.messageReactionAdd.joined3")}`,
-      ),
-    )
-    .catch(() => {});
-};
+  };

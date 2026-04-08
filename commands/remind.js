@@ -1,8 +1,4 @@
 const crypto = require("crypto");
-const {
-  scheduleGuildReminder,
-  scheduleDMReminder,
-} = require("../functions/checkReminders");
 const fetchTime = require("../functions/fetchTime");
 const { EmbedBuilder } = require("@erinjs/core");
 const chrono = require("chrono-node");
@@ -18,6 +14,7 @@ const CONFIG = {
   MAX_MESSAGE_LENGTH: 400,
   DISPLAY_LENGTH: 120,
   MIN_TIME_SECONDS: 59,
+  MAX_TIME_SECONDS: 63115209,
   WORDS_TO_REMOVE: ["me", "to", "for"],
 };
 
@@ -78,7 +75,7 @@ function errorEmbed(prefix, type, client, language, extra = "") {
     noReminders: `${client.translate.get(language, "Commands.remind.noReminders")}\n\n**Create one:** ${examples.create}`,
     invalidIndex: client.translate.get(language, "Commands.remind.invalidIndex", { "cmd": `${prefix}remind list` }),
     deleteUsage: `${client.translate.get(language, "Commands.remind.deleteUsage")}\n\n**${client.translate.get(language, "Commands.remind.example")}:** ${examples.delete}`,
-    dmFailed: client.translate.get(language, "Commands.remind.dmFailed"),
+    tooFar: `${client.translate.get(language, "Commands.remind.tooFar")}\n\n**${client.translate.get(language, "Commands.remind.example")}:**\n\`${prefix}remind 1 year ...\`\n\`${prefix}remind 1y ...\``,
     numberOnly: `${client.translate.get(language, "Commands.remind.numberOnly")}\n\n**${client.translate.get(language, "Commands.remind.example")}:**\n${examples.basic}\n${examples.list}\n${examples.delete}`,
   };
   return createEmbed(EMBED_COLORS.ERROR, null, messages[type]);
@@ -159,7 +156,7 @@ function parseTimeAndMessage(inputText, timezone) {
     const afterTime = inputText
       .substring(parsedResult.index + timeText.length)
       .trim();
-    const reminderMessage = (beforeTime + " " + afterTime).trim();
+    const reminderMessage = beforeTime ? (beforeTime + " " + afterTime).trim() : afterTime;
     return { timestamp, reminderMessage };
   }
 
@@ -278,7 +275,8 @@ async function handleCreate(message, args, prefix, isDM, client, language) {
     });
   }
 
-  const { timestamp, reminderMessage } = parsed;
+  let { timestamp, reminderMessage } = parsed;
+  timestamp = Number(timestamp);
 
   if (!reminderMessage) {
     return message.channel.send({
@@ -287,6 +285,12 @@ async function handleCreate(message, args, prefix, isDM, client, language) {
   }
 
   const cleanedMessage = cleanReminderMessage(reminderMessage);
+
+  if (!cleanedMessage || cleanedMessage.length === 0) {
+    return message.channel.send({
+      embeds: [errorEmbed(prefix, "noMessage", client, language)],
+    });
+  }
 
   if (cleanedMessage.length > CONFIG.MAX_MESSAGE_LENGTH) {
     return message.channel.send({
@@ -305,6 +309,12 @@ async function handleCreate(message, args, prefix, isDM, client, language) {
   if (timestamp - now < CONFIG.MIN_TIME_SECONDS) {
     return message.channel.send({
       embeds: [errorEmbed(prefix, "tooShort", client, language)],
+    });
+  }
+
+  if (timestamp - now > CONFIG.MAX_TIME_SECONDS) {
+    return message.channel.send({
+      embeds: [errorEmbed(prefix, "tooFar", client, language)],
     });
   }
 
@@ -346,8 +356,6 @@ async function handleCreate(message, args, prefix, isDM, client, language) {
       { reminders: [...(userData.reminders || []), newReminder] },
       true
     );
-    const userTimezone = userData?.timezone;
-    scheduleDMReminder(client, message.author.id, reminderId, timestamp, cleanedMessage, now, userTimezone);
   } else {
     const reminderId = crypto.randomUUID();
     const newReminder = {
@@ -375,15 +383,6 @@ async function handleCreate(message, args, prefix, isDM, client, language) {
       embeds: [successEmbed(`${client.translate.get(language, "Commands.remind.success")} ${timeStr} (${dateStr}): \`${displayMsg}\``)],
     });
 
-    scheduleGuildReminder(
-      client,
-      message.author.id,
-      reminderId,
-      timestamp,
-      cleanedMessage,
-      message.channel.id,
-      now
-    );
   }
 }
 

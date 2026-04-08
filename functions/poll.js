@@ -19,44 +19,8 @@ class Polls {
 
     async start(message, poll, first = false) {
       message = await message;
-        this.client.polls.set(message.id, { poll, messageId: message.id, channelId: message.channelId, users: this.users, owner: this.owner, lang: poll.lang })
-        setTimeout(async () => {
-            const polls = this.client.polls.get(message.id)
-            if (!polls) return;
-            await this.update();
+        this.client.polls.set(message.id, { poll, messageId: message.id, channelId: message.channelId, users: this.users, owner: this.owner, lang: this.lang })
 
-            let tooMuch = [];
-            if (polls.poll.options.description.length > 80) tooMuch.push(`**${client.translate.get(polls.language, "Events.messageReactionRemove.title")}**: ${polls.poll.options.description}`)
-            polls.poll.voteOptions.name.filter(e => e).forEach((e, i) => {
-              i++
-              if (e.length > 70) {
-                tooMuch.push(`**${i}.** ${e}`)
-              }
-            });
-
-            const pollImage = await fetch(`${process.env.CDN}/api/upload`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      apikey: process.env.CDN_KEY,
-                      image: polls.poll.canvas.toDataURL('image/png'),
-                      timeframe: polls.poll.time,
-                      messageId: message.id,
-                      last: true
-                    })
-            }).then((i) => i.json())
-
-          try {
-            const newMsg = await (await this.client.channels.resolve(polls.channelId))?.messages?.fetch(polls.messageId)
-            newMsg.edit({ embeds: [new EmbedBuilder().setDescription(`${this.client.translate.get(this.lang, "Functions.poll.end")}${tooMuch.length > 0 ? `\n\n${tooMuch.map(e => e).join("\n")}` : ""}\n_ _`).setImage(`${process.env.CDN}${pollImage.url}`).setColor(`#A52F05`)] });
-            newMsg.removeAllReactions().catch(() => { })
-          } catch { }
-          this.client.polls.delete(polls.messageId);
-          await PollDB.findOneAndUpdate({ messageId: message.id }, { ended: true });
-        }, this.time);
-      
         if (first) {
           const pollImage = await fetch(`${process.env.CDN}/api/upload`, {
             method: 'POST',

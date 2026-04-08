@@ -2,7 +2,7 @@ const { Webhook, EmbedBuilder } = require("@erinjs/core");
 
 module.exports = async (client, message, userId) => {
   const db = await client.database.getGuild(message.guildId);
-  if (!db?.timezone?.enabled) return;
+  if (!db?.timezoneConvert) return;
 
   const userData = await client.database.getUser(userId, false);
   if (!userData?.timezone) return;

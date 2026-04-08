@@ -1,18 +1,10 @@
+const cron = require("node-cron");
 const db = require("../models/users");
 
-const MAX_TIMEOUT = 2147483647;
+let cronJob = null;
 
 function formatTimeWithTimezone(timestamp) {
     return `<t:${timestamp}:f>`;
-}
-
-function safeTimeout(callback, delay) {
-  if (delay <= MAX_TIMEOUT) {
-    return setTimeout(callback, delay);
-  }
-
-  const remaining = delay - MAX_TIMEOUT;
-  return setTimeout(() => safeTimeout(callback, remaining), MAX_TIMEOUT);
 }
 
 async function sendGuildReminderWithRetry(client, channelId, userId, message, createdAt, maxRetries = 3) {
@@ -53,86 +45,54 @@ async function sendDMReminderWithRetry(client, userId, message, createdAt, maxRe
     return { success: false };
 }
 
-async function scheduleGuildReminder(client, userId, reminderId, timestamp, message, channelId, createdAt) {
-    const now = Date.now();
-    const timeUntil = timestamp * 1000 - now;
-    if (timeUntil <= 0) return;
-
-    safeTimeout(async () => {
-        await sendGuildReminderWithRetry(client, channelId, userId, message, createdAt);
-        try {
-            const userData = await client.database.getUser(userId, false);
-            if (userData) {
-                const updatedReminders = (userData.reminders || []).filter(r => r.id !== reminderId);
-                await client.database.updateUser(userId, { reminders: updatedReminders }, true);
-            }
-        } catch (err) {
-        }
-    }, timeUntil);
-}
-
-async function scheduleDMReminder(client, userId, reminderId, timestamp, message, createdAt) {
-    const now = Date.now();
-    const timeUntil = timestamp * 1000 - now;
-    if (timeUntil <= 0) return;
-
-    safeTimeout(async () => {
-        await sendDMReminderWithRetry(client, userId, message, createdAt);
-        try {
-            const userData = await client.database.getUser(userId, false);
-            if (userData) {
-                const updatedReminders = (userData.reminders || []).filter(r => r.id !== reminderId);
-                await client.database.updateUser(userId, { reminders: updatedReminders }, true);
-            }
-        } catch (err) {
-        }
-    }, timeUntil);
-}
-
-async function checkReminders(client) {
+async function processDueReminders(client) {
     const usersWithReminders = await db.find({ "reminders.0": { $exists: true } });
     if (!usersWithReminders?.length) return;
 
-    const now = Date.now();
+    const nowSeconds = Math.floor(Date.now() / 1000);
 
     for (const userData of usersWithReminders) {
         const userId = userData.userId;
+        const dueReminders = userData.reminders.filter(r => r.timestamp <= nowSeconds);
 
-        for (const reminder of userData.reminders) {
-            const timeUntil = reminder.timestamp * 1000 - now;
-            
-            if (timeUntil <= 0) {
-                if (reminder.type === "guild") {
-                    await sendGuildReminderWithRetry(client, reminder.channelId, userId, reminder.message, reminder.createdAt);
-                } else {
-                    await sendDMReminderWithRetry(client, userId, reminder.message, reminder.createdAt);
-                }
-                try {
-                    const updatedReminders = (userData.reminders || []).filter(r => r.id !== reminder.id);
-                    await client.database.updateUser(userId, { reminders: updatedReminders }, true);
-                } catch (err) {
-                }
-                continue;
+        if (dueReminders.length === 0) continue;
+
+        for (const reminder of dueReminders) {
+            if (reminder.type === "guild") {
+                await sendGuildReminderWithRetry(client, reminder.channelId, userId, reminder.message, reminder.createdAt);
+            } else {
+                await sendDMReminderWithRetry(client, userId, reminder.message, reminder.createdAt);
             }
+        }
 
-            safeTimeout(async () => {
-                if (reminder.type === "guild") {
-                    await sendGuildReminderWithRetry(client, reminder.channelId, userId, reminder.message, reminder.createdAt);
-                } else {
-                    await sendDMReminderWithRetry(client, userId, reminder.message, reminder.createdAt);
-                }
-                
-                try {
-                    const currentUserData = await client.database.getUser(userId, false);
-                    if (currentUserData) {
-                        const updatedReminders = (currentUserData.reminders || []).filter(r => r.id !== reminder.id);
-                        await client.database.updateUser(userId, { reminders: updatedReminders }, true);
-                    }
-                } catch (err) {
-                }
-            }, timeUntil);
+        try {
+            const remainingReminders = userData.reminders.filter(r => r.timestamp > nowSeconds);
+            await client.database.updateUser(userId, { reminders: remainingReminders }, true);
+        } catch (err) {
         }
     }
 }
 
-module.exports = { checkReminders, sendGuildReminderWithRetry, sendDMReminderWithRetry, scheduleGuildReminder, scheduleDMReminder };
+function startReminderCron(client) {
+    if (cronJob) {
+        cronJob.stop();
+    }
+
+    cronJob = cron.schedule("* * * * *", async () => {
+        await processDueReminders(client);
+    });
+}
+
+function stopReminderCron() {
+    if (cronJob) {
+        cronJob.stop();
+        cronJob = null;
+    }
+}
+
+module.exports = {
+    sendGuildReminderWithRetry,
+    sendDMReminderWithRetry,
+    startReminderCron,
+    stopReminderCron,
+};

@@ -4,15 +4,22 @@ function parseTime(input, tz = "America/New_York") {
   if (!input || typeof input !== 'string') return null;
 
   const now = new Date();
-  const timeRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i;
+  const timeRegex = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(\d{1,2}):(\d{2})\b/i;
   const match = input.match(timeRegex);
   if (!match) return null;
 
-  let hours = parseInt(match[1], 10);
-  const minutes = match[2] ? parseInt(match[2], 10) : 0;
-  const period = match[3] ? match[3].toLowerCase() : null;
+  let hours, minutes, period;
+  if (match[4] !== undefined) {
+    hours = parseInt(match[4], 10);
+    minutes = parseInt(match[5], 10);
+    period = null;
+  } else {
+    hours = parseInt(match[1], 10);
+    minutes = match[2] ? parseInt(match[2], 10) : 0;
+    period = match[3] ? match[3].toLowerCase() : null;
+  }
 
-  if (isNaN(hours) || hours > 23 || minutes > 59) return null;
+  if (isNaN(hours) || hours > 23 || minutes > 59 || isNaN(minutes)) return null;
   if (period === 'pm' && hours < 12) hours += 12;
   if (period === 'am' && hours === 12) hours = 0;
 

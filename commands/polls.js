@@ -111,7 +111,7 @@ module.exports = {
       //   return paginator.start(message.channel);
       // }
 
-      const check = await PollDB.find({ owner: message.author.id })
+      const check = await PollDB.find({ owner: message.author.id, ended: false })
       if (check.length === 5) return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.polls.tooMany")).setColor(`#FF0000`)] });
       const options = args.join(` `).split(`|`).map(x => x.trim()).filter(x => x);
       if (!options[0]) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.polls.validTime")}: \`${db.prefix}polls 5m | ${client.translate.get(db.language, "Commands.polls.example")}\``).setColor(`#FF0000`)] });

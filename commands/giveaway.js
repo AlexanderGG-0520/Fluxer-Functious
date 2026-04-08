@@ -13,6 +13,15 @@ module.exports = {
         aliases: ["gw"],
     },
   run: async (client, message, args, db) => {
+    if (!args || args.length === 0 || args[0] === "help") {
+      return message.reply({
+        embeds: [new EmbedBuilder()
+          .setTitle(client.translate.get(db.language, "Commands.giveaway.title"))
+          .setDescription(`**${client.translate.get(db.language, "Commands.roles.explain")}**\n${client.translate.get(db.language, "Commands.giveaway.explain")}\n\n**Creating**\n\`${db.prefix}giveaway ${client.translate.get(db.language, "Commands.giveaway.creating")}\`\n\n**Deleting**\n\`${db.prefix}giveaway delete ${client.translate.get(db.language, "Commands.giveaway.deleting")}\`\n\n**Rerolling**\n\`${db.prefix}giveaway reroll ${client.translate.get(db.language, "Commands.reroll.usage")}\``)
+          .setColor(`#A52F05`)]
+      });
+    }
+    
     if (args[0] === "reroll") {
       let winners;
       let picked = [];
@@ -31,41 +40,56 @@ module.exports = {
       if (check.picking.length === 0) return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.reroll.noPicks")).setColor(`#FF0000`)] })
 
       if (winners === "all") {
-          check.pickedWinners = [];
-          for (let i = 0; i < check.winners; i++) {
-              let winner = check.picking[Math.floor(Math.random() * check.picking.length)];
-              if (winner) {
-                  const filtered = check.picking.filter(object => object.userID != winner.userID)
-                  check.picking = filtered;
-                  check.pickedWinners.push({ id: winner.userID })
-                  picked.push({ id: winner.userID })
-              }
-          }
-          await check.save();
-      } else {
-          if (winners > check.pickedWinners.length) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(check.language, "Commands.reroll.onlyWinners")} ${check.pickedWinners.length} ${client.translate.get(check.language, "Commands.reroll.onlyWinners2")}: \`${db.prefix}reroll ${msgId} [${client.translate.get(check.language, "Commands.reroll.winnerNum")}, E.g. 1, 2, all] \``).setColor(`#FF0000`)] })
-
+        check.pickedWinners = [];
+        for (let i = 0; i < check.winners; i++) {
           let winner = check.picking[Math.floor(Math.random() * check.picking.length)];
-          const filtered = check.picking.filter(object => object.userID != winner.userID)
-          check.picking = filtered;
-          const filtered2 = check.pickedWinners.filter(object => object.id != check.pickedWinners[winners - 1].id)
-          check.pickedWinners = filtered2;
-          check.pickedWinners.push({ id: winner.userID })
-          await check.save();
-          picked.push({ id: winner.userID })
+          if (winner) {
+            const filtered = check.picking.filter(object => object.userID != winner.userID)
+            check.picking = filtered;
+            check.pickedWinners.push({ id: winner.userID })
+            picked.push({ id: winner.userID })
+          }
+        }
+        await check.save();
+      } else {
+        if (winners > check.pickedWinners.length) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(check.language, "Commands.reroll.onlyWinners")} ${check.pickedWinners.length} ${client.translate.get(check.language, "Commands.reroll.onlyWinners2")}: \`${db.prefix}reroll ${msgId} [${client.translate.get(check.language, "Commands.reroll.winnerNum")}, E.g. 1, 2, all] \``).setColor(`#FF0000`)] })
+
+        let winner = check.picking[Math.floor(Math.random() * check.picking.length)];
+        const filtered = check.picking.filter(object => object.userID != winner.userID)
+        check.picking = filtered;
+        const filtered2 = check.pickedWinners.filter(object => object.id != check.pickedWinners[winners - 1].id)
+        check.pickedWinners = filtered2;
+        check.pickedWinners.push({ id: winner.userID })
+        await check.save();
+        picked.push({ id: winner.userID })
       }
 
       const embed = new EmbedBuilder()
-          .setColor("#A52F05")
-          .setTitle(check.prize)
-          .setDescription(`${client.translate.get(check.language, "Commands.reroll.giveaway")}\n\n${client.translate.get(check.language, "Commands.reroll.ended")}: <t:${Math.floor((check.endDate) / 1000)}:R>\n${client.translate.get(check.language, "Commands.giveaway.hosted")}: <@${check.owner}>\n${client.translate.get(check.language, "Commands.reroll.partici")}: ${check.users.length}\n${client.translate.get(check.language, "Commands.reroll.winner")}: ${check.pickedWinners.map(w => `<@${w.id}>`).join(", ")}${check.requirement ? `\n${client.translate.get(check.language, "Commands.reroll.reqs")}: ${check.requirement}` : ``}`)
+        .setColor("#A52F05")
+        .setTitle(check.prize)
+        .setDescription(`${client.translate.get(check.language, "Commands.reroll.giveaway")}\n\n${client.translate.get(check.language, "Commands.reroll.ended")}: <t:${Math.floor((check.endDate) / 1000)}:R>\n${client.translate.get(check.language, "Commands.giveaway.hosted")}: <@${check.owner}>\n${client.translate.get(check.language, "Commands.reroll.partici")}: ${check.users.length}\n${client.translate.get(check.language, "Commands.reroll.winner")}: ${check.pickedWinners.map(w => `<@${w.id}>`).join(", ")}${check.requirement ? `\n${client.translate.get(check.language, "Commands.reroll.reqs")}: ${check.requirement}` : ``}`)
 
-    try {
-    const newMsg = await (await client.channels.resolve(check.channelId))?.messages?.fetch(check.messageId);
-      newMsg.edit({ embeds: [embed] });
-    } catch {}
-    (await client.channels.resolve(check.channelId))?.send({ content: `${client.translate.get(check.language, "Commands.reroll.reroll")} ${picked.map(w => `<@${w.id}>`).join(", ")} ${client.translate.get(check.language, "Commands.reroll.reroll2")} [${check.prize}](https://fluxer.app/channels/${check.serverId}/${check.channelId}/${check.messageId})` });
-    } else if (args[0] === "start") {
+      try {
+        const newMsg = await (await client.channels.resolve(check.channelId))?.messages?.fetch(check.messageId);
+        newMsg.edit({ embeds: [embed] });
+      } catch { }
+      (await client.channels.resolve(check.channelId))?.send({ content: `${client.translate.get(check.language, "Commands.reroll.reroll")} ${picked.map(w => `<@${w.id}>`).join(", ")} ${client.translate.get(check.language, "Commands.reroll.reroll2")} [${check.prize}](https://fluxer.app/channels/${check.serverId}/${check.channelId}/${check.messageId})` });
+    } else if (args[0] === "delete") {
+      const msgId = args[1];
+      if (!msgId) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.giveaway.notValid")}\n**${client.translate.get(db.language, 'Commands.help.embeds.first.cmdUsage')}**:\`${db.prefix}giveaway delete ${client.translate.get(db.language, "Commands.giveaway.deleting")}\``).setColor(`#FF0000`)] })
+      
+      const check = await Giveaways.findOne({ messageId: msgId });
+      if (!check) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.giveaway.notValid")}\n**${client.translate.get(db.language, 'Commands.help.embeds.first.cmdUsage')}**:\n\`${db.prefix}giveaway delete ${client.translate.get(db.language, "Commands.giveaway.deleting")}\``).setColor(`#FF0000`)] });
+      if (check.owner !== message.author.id) return message.reply({ content: client.translate.get(db.language, "Commands.giveaway.notOwner") });
+      
+      await Giveaways.findOneAndDelete({ messageId: msgId });
+      try {
+        const newMsg = await (await client.channels.resolve(check.channelId))?.messages?.fetch(check.messageId);
+        newMsg.delete().catch(() => { });
+      } catch { };
+      
+      return message.reply({ content: `${client.translate.get(db.language, "Commands.giveaway.successDelete", { "giveawayName": `**${check.prize}**` })}` });
+    } else {
       const me = (message.guild?.members.me ?? (message.guild ? await message.guild.members.fetchMe() : null));
       const check = await Giveaways.find({ serverId: message.guildId, ended: false })
       if (check.length === 15) return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, 'Commands.giveaway.tooMany')).setColor(`#FF0000`)] });
@@ -128,28 +152,6 @@ module.exports = {
           lang: db.language,
           requirement: requirement
         });
-      });
-    } else if (args[0] === "delete") {
-      const msgId = args[1];
-      if (!msgId) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.giveaway.notValid")}\n**${client.translate.get(db.language, 'Commands.help.embeds.first.cmdUsage')}**:\`${db.prefix}giveaway delete ${client.translate.get(db.language, "Commands.giveaway.deleting")}\``).setColor(`#FF0000`)]  })
-      
-      const check = await Giveaways.findOne({ messageId: msgId });
-      if (!check) return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.giveaway.notValid")}\n**${client.translate.get(db.language, 'Commands.help.embeds.first.cmdUsage')}**:\n\`${db.prefix}giveaway delete ${client.translate.get(db.language, "Commands.giveaway.deleting")}\``).setColor(`#FF0000`)] });
-      if (check.owner !== message.author.id) return message.reply({ content: client.translate.get(db.language, "Commands.giveaway.notOwner") });
-      
-      await Giveaways.findOneAndDelete({ messageId: msgId });
-      try {
-      const newMsg = await (await client.channels.resolve(check.channelId))?.messages?.fetch(check.messageId);
-        newMsg.delete().catch(() => { });
-      } catch { };
-      
-      return message.reply({ content: `${client.translate.get(db.language, "Commands.giveaway.successDelete", { "giveawayName": `**${check.prize}**` })}` });
-    } else {
-      return message.reply({
-        embeds: [new EmbedBuilder()
-          .setTitle(client.translate.get(db.language, "Commands.giveaway.title"))
-          .setDescription(`**${client.translate.get(db.language, "Commands.roles.explain")}**\n${client.translate.get(db.language, "Commands.giveaway.explain")}\n\n**Creating**\n\`${db.prefix}giveaway start ${client.translate.get(db.language, "Commands.giveaway.creating")}\`\n\n**Deleting**\n\`${db.prefix}giveaway delete ${client.translate.get(db.language, "Commands.giveaway.deleting")}\`\n\n**Rerolling**\n\`${db.prefix}giveaway reroll ${client.translate.get(db.language, "Commands.reroll.usage")}\``)
-          .setColor(`#A52F05`)]
       });
     }
   }

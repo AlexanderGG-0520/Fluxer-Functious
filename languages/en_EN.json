@@ -81,6 +81,7 @@
       "setReminder": "Set a reminder in this channel",
       "setDMReminder": "Set a DM reminder",
       "dmExplain": "This deletes your message and sends you a confirmation DM",
+      "view": "View your reminders",
       "delete": "Delete a reminder",
       "naturalLang": "Natural language formats",
       "shortForm": "Short-form formats",
@@ -91,7 +92,8 @@
       "deleteReminder": "Deleted reminder",
       "yourMessage": "Your message has {numbers} characters",
       "dmReminder": "Your reminder has been set. I'll DM when you it's time.",
-      "success": "Ok, reminding you in"
+      "success": "Ok, reminding you in",
+      "tooFar": "The time you provided is too far in the future. The maximum time is 2 years."
     },
     "tempchannels": {
       "customCat": "Please provide a valid category name or ID.",
