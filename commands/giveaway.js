@@ -1,6 +1,7 @@
 const { EmbedBuilder, PermissionFlags } = require('@erinjs/core')
 const Giveaways = require(`../models/giveaways`)
 const dhms = require(`../functions/dhms`);
+const { handleNew, handleDelete } = require(`../functions/checkGiveaways`);
 const regex = new RegExp(/^channel:\s*(?:<#(\d+)>|#?([\w-]+)|(\d+))$/i);
 
 module.exports = {
@@ -83,6 +84,7 @@ module.exports = {
       if (check.owner !== message.author.id) return message.reply({ content: client.translate.get(db.language, "Commands.giveaway.notOwner") });
       
       await Giveaways.findOneAndUpdate({ messageId: msgId }, { ended: true });
+      handleDelete(msgId);
       try {
         const newMsg = await (await client.channels.resolve(check.channelId))?.messages?.fetch(check.messageId);
         newMsg.delete().catch(() => { });
@@ -141,7 +143,7 @@ module.exports = {
             await msg.react(reaction).catch(() => {});
         }
         
-        await Giveaways.create({
+        const giveawayData = await Giveaways.create({
           owner: message.author.id,
           serverId: message.guildId,
           channelId: channel.id,
@@ -153,6 +155,8 @@ module.exports = {
           lang: db.language,
           requirement: requirement
         });
+
+        handleNew(giveawayData);
       });
     }
   }

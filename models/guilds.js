@@ -18,6 +18,7 @@ const guilds = new Schema({
   parentChannel: { type: String, default: null },
   childChannel: { type: String, default: null },
   tempChannels: { type: Array, default: [] },
+  scheduledMessages: { type: Array, default: [] },
   config: {
     channelName: { type: String, default: null },
     channelLimit: { type: Number, default: null },

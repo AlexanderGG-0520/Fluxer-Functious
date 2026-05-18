@@ -1,4 +1,5 @@
 const dhms = require("../functions/dhms");
+const { handleNew } = require("../functions/checkTimedRoles");
 
 module.exports = async (client, member) => {
   if (member.user.bot) return;
@@ -10,10 +11,12 @@ module.exports = async (client, member) => {
     const roleIds = [];
 
     for (const role of db.timedRoles) {
-      roleIds.push({
+      const roleWithTime = {
         id: role.id,
         time: now + role.time,
-      });
+      };
+      roleIds.push(roleWithTime);
+      handleNew(member.guild.id, member.user.id, roleWithTime);
     }
 
     let updatedUsersJoined = db.usersJoined || [];

@@ -1,6 +1,7 @@
 const { EmbedBuilder, PermissionFlags } = require("@erinjs/core");
 const Collector = require("../functions/messageCollector");
 const EditCollector = require("../functions/messageEdit");
+const ScheduleCollector = require("../functions/scheduleCollector");
 const errorHandler = require("../functions/errorHandler");
 const parseTime = require("../functions/parseTime");
 const manageVC = require("../functions/manageVC");
@@ -23,6 +24,9 @@ module.exports = async (client, message) => {
 
   if (client.messageEdit.has(message.author.id) && client.messageEdit.get(message.author.id).channelId === message.channelId && !client.messageEdit.get(message.author.id).messageId)
     return await EditCollector(client, message, db);
+
+  if (client.scheduleCollector.has(message.author.id) && client.scheduleCollector.get(message.author.id).channelId === message.channelId && client.scheduleCollector.get(message.author.id)?.editMode !== "menu")
+    return await ScheduleCollector(client, message, db);
 
   let prefixLength = db.prefix.length;
   if (db.timezoneConvert) {

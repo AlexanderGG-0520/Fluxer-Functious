@@ -33,9 +33,12 @@ async function Collector(client, message, db) {
   const roleIds = await getRoles(roles, message, client, db);
   if (!roleIds) return;
 
-  const cleanedContent = message.content.replace(/\{role:\s*(.*?)\}/g, '{role:$1}');
+  const hadMentionMarker = message.content.includes("{mention}");
+  let cleanedContent = message.content.replace(/\{role:\s*(.*?)\}/g, '{role:$1}');
+  cleanedContent = cleanedContent.replace(/\{mention\}/g, "");
   message.delete().catch(() => { });
   collector.roles = roleIds;
+  collector.useMention = hadMentionMarker;
   return message.channel.send(collector.type === "content" ? { content: cleanedContent } : { embeds: [new EmbedBuilder().setDescription(cleanedContent).setColor("#A52F05")] }).then(async (msg) => {
       collector.messageId = msg.id;
   });

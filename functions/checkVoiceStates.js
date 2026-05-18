@@ -6,8 +6,6 @@ async function checkVoiceStates(client) {
     $expr: { $gt: [{ $size: "$tempChannels" }, 0] },
   });
 
-  const observed = client.observedVoiceUsers;
-  
   for (const g of guilds) {
     const guildId = g.id;
     if (!guildId) continue;
@@ -17,11 +15,14 @@ async function checkVoiceStates(client) {
       const channelId = temp?.channelId;
       if (!channelId) continue;
 
-      const hasUsers = [...observed.values()].some(
+      const hasUsers = [...client.observedVoiceUsers.values()].some(
+        (v) => v?.guildId === guildId && v?.channelId === channelId,
+      );
+      const hasBots = [...client.observedVoiceBots.values()].some(
         (v) => v?.guildId === guildId && v?.channelId === channelId,
       );
 
-      if (hasUsers) continue;
+      if (hasUsers || hasBots) continue;
 
       try {
         const channel = await client.channels.resolve(channelId).catch(() => null);

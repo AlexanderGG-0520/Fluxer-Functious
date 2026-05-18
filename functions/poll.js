@@ -1,7 +1,7 @@
 const { EmbedBuilder } = require('@erinjs/core');
 const PollDB = require("../models/polls");
 const Canvas = require('canvas');
-//const format = `${(new Date().getMonth() + 1) < 10 ? `0${new Date().getMonth() + 1}` : new Date().getMonth() + 1}/${new Date().getDate()}/${new Date().getFullYear()} ${new Date().getHours()}:${(new Date().getMinutes() < 10 ? '0' : '') + new Date().getMinutes()}`;
+
 class Polls {
     constructor({ time, client, name, options, users, avatars, votes, owner, lang }) {
         this.client = client;
@@ -15,6 +15,10 @@ class Polls {
         this.owner = owner;
         this.lang = lang;
         this.size = { canvas: options.name.length === 2 ? 200 : options.name.length === 3 ? 250 : options.name.length === 4 ? 300 : options.name.length === 5 ? 350 : options.name.length === 6 ? 400 : options.name.length === 7 ? 450 : options.name.length === 8 ? 500 : options.name.length === 9 ? 550 : 600, bar: options.name.length === 2 ? 150 : options.name.length === 3 ? 200 : options.name.length === 4 ? 250 : options.name.length === 5 ? 300 : options.name.length === 6 ? 350 : options.name.length === 7 ? 400 : options.name.length === 8 ? 450 : options.name.length === 9 ? 500 : 550 };
+        this.voteQueue = [];
+        this.processing = false;
+        this.debounceTimer = null;
+        this.debounceDelay = 500;
     }
 
     async start(message, poll, first = false) {
@@ -34,12 +38,11 @@ class Polls {
             })
           }).then((i) => i.json())
 
-          //const newMsg = await (await this.client.channels.resolve(message.channelId))?.messages?.fetch(message.id)
           message.edit({ embeds: [new EmbedBuilder().setDescription(`${this.client.translate.get(this.lang, "Commands.giveaway.time")}: <t:${Math.floor((this.time + Date.now()) / 1000)}:R>${first.tooMuch.length > 0 ? `\n\n${first.tooMuch.map(e => e).join("\n")}` : ""}`).setImage(`${process.env.CDN}${pollImage.url}`).setColor(`#A52F05`)] }).catch(() => { })
         }
 
         if (this.time < 0) return;
-        await (new PollDB({
+        const savedPoll = await (new PollDB({
           owner: this.owner,
           serverId: message.guildId,
           channelId: message.channelId,
@@ -54,6 +57,7 @@ class Polls {
           lang: this.lang,
           now: Date.now(),
         }).save());
+        return savedPoll;
     }
 
     textHeight(text, ctx, m) {
@@ -61,7 +65,7 @@ class Polls {
         return metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
     }
 
-    roundRect(ctx, x, y, width, height, radius, fill, stroke) { // Credit to https://stackoverflow.com/users/227299/juan-mendes
+    roundRect(ctx, x, y, width, height, radius, fill, stroke) {
         if (typeof stroke === 'undefined') {
             stroke = true;
         }
@@ -132,18 +136,79 @@ class Polls {
         await this.drawFooter(ctx, padding, padding + headerHeight + barHeight * 2 + 20, width, height, padding, this.avatars);
     }
 
-    async addVote(option, user, avatar, id) {
-        this.votes[option]++;
-        await PollDB.findOneAndUpdate({ messageId: id }, { $push: { users: { user: user, option: option, avatar: avatar } }, $inc: { [`votes.${option}`]: 1 } });
-        await this.update();
-        return this.canvas;
+    addVote(option, user, avatar, id) {
+        return new Promise((resolve, reject) => {
+            this.voteQueue.push({
+                resolve,
+                reject,
+                type: 'add',
+                args: [option, user, avatar, id]
+            });
+            this.scheduleFlush();
+        });
     }
 
-    async removeVote(option, user, id) {
-        this.votes[option]--;
-        await PollDB.findOneAndUpdate({ messageId: id }, { $pull: { users: { user: user, option: option } }, $inc: { [`votes.${option}`]: -1 } });
+    removeVote(option, user, id) {
+        return new Promise((resolve, reject) => {
+            this.voteQueue.push({
+                resolve,
+                reject,
+                type: 'remove',
+                args: [option, user, id]
+            });
+            this.scheduleFlush();
+        });
+    }
+
+    scheduleFlush() {
+        if (this.debounceTimer) {
+            clearTimeout(this.debounceTimer);
+        }
+        this.debounceTimer = setTimeout(() => this.flush(), this.debounceDelay);
+    }
+
+    async flush() {
+        if (this.processing) return;
+        this.processing = true;
+        this.debounceTimer = null;
+
+        const batch = [];
+        while (this.voteQueue.length > 0) {
+            batch.push(this.voteQueue.shift());
+        }
+
+        if (batch.length === 0) {
+            this.processing = false;
+            return;
+        }
+
+        for (const item of batch) {
+            try {
+                if (item.type === 'add') {
+                    const [option, user, avatar, id] = item.args;
+                    this.votes[option]++;
+                    await PollDB.findOneAndUpdate({ messageId: id }, { $push: { users: { user: user, option: option, avatar: avatar } }, $inc: { [`votes.${option}`]: 1 } });
+                } else if (item.type === 'remove') {
+                    const [option, user, id] = item.args;
+                    this.votes[option]--;
+                    await PollDB.findOneAndUpdate({ messageId: id }, { $pull: { users: { user: user, option: option } }, $inc: { [`votes.${option}`]: -1 } });
+                }
+            } catch (err) {
+                item.reject(err);
+            }
+        }
+
         await this.update();
-        return this.canvas;
+
+        for (const item of batch) {
+            if (item.resolve) item.resolve(this.canvas);
+        }
+
+        this.processing = false;
+
+        if (this.voteQueue.length > 0) {
+            this.scheduleFlush();
+        }
     }
 
     drawVoteBars(ctx, width, height, votes, vars, names, vote) {
@@ -255,13 +320,6 @@ class Polls {
             ctx.closePath();
             pos -= rad;
         }
-
-        // Date
-        // let date = format;
-        // metrics = ctx.measureText(date);
-        // h = this.textHeight(date, ctx, metrics);
-        // ctx.fillText(date, width - 15 - metrics.width, rad + h);
-        // ctx.restore();
     }
 }
 

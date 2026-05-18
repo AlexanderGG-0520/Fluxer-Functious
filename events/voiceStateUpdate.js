@@ -32,9 +32,40 @@ module.exports = async (client, oldState, newState) => {
     if (wasTemp) {
       client.observedVoiceUsers.delete(userId);
 
-      if ([...client.observedVoiceUsers.values()]
+      const hasUsers = [...client.observedVoiceUsers.values()]
         .filter(data => data?.channelId === observe.channelId)
-        .length === 0) {
+        .length > 0;
+      const hasBots = [...client.observedVoiceBots.values()]
+        .filter(data => data?.channelId === observe.channelId)
+        .length > 0;
+
+      if (!hasUsers && !hasBots) {
+        const tempChan = await guild.channels.find((c) => c.id === observe.channelId);
+        if (tempChan) await tempChan.delete();
+
+        const updatedTemps = tempChannels.filter(
+          (c) => c.channelId !== observe.channelId,
+        );
+        await client.database.updateGuild(guildId, {
+          tempChannels: updatedTemps,
+        });
+      }
+    }
+  } else if (!newChannelId && client.observedVoiceBots.get(userId)) {
+    const observe = client.observedVoiceBots.get(userId);
+    const wasTemp = tempChannels.find((c) => c.channelId === observe.channelId);
+
+    if (wasTemp) {
+      client.observedVoiceBots.delete(userId);
+
+      const hasUsers = [...client.observedVoiceUsers.values()]
+        .filter(data => data?.channelId === observe.channelId)
+        .length > 0;
+      const hasBots = [...client.observedVoiceBots.values()]
+        .filter(data => data?.channelId === observe.channelId)
+        .length > 0;
+
+      if (!hasUsers && !hasBots) {
         const tempChan = await guild.channels.find((c) => c.id === observe.channelId);
         if (tempChan) await tempChan.delete();
 
@@ -48,7 +79,6 @@ module.exports = async (client, oldState, newState) => {
     }
   }
 
-  // && channel?.parentId === parentChannelId
   if (
       parentChannelId &&
       childChannel &&

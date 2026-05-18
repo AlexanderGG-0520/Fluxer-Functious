@@ -82,7 +82,8 @@ module.exports = async (client, message, userId, editCollector, reactionChan, re
 
     if (!newMsg) return;
 
-    const replaceText = `${emote} ${emoji.name}`;
+    const roleDisplay = editCollector.useMention ? `<@&${emoji.role}>` : emoji.name;
+    const replaceText = `${emote} ${roleDisplay}`;
     const withText = `{role:${emoji.name}}`;
 
     const editContent =
@@ -98,8 +99,9 @@ module.exports = async (client, message, userId, editCollector, reactionChan, re
   const emote = message.emoji?.id ? `<:${emojiId}:${message.emoji.id}>` : emojiId;
   editCollector.rolesDone.push({ emoji: emote, role: editCollector.roles[0][0], name: editCollector.roles[0][1].name });
 
+  const roleDisplay = editCollector.useMention ? `<@&${editCollector.roles[0][0]}>` : editCollector.roles[0][1].name;
   const replaceText = `{role:${editCollector.regex[0]}}`;
-  const withText = `${emote} ${editCollector.roles[0][1].name}`;
+  const withText = `${emote} ${roleDisplay}`;
 
   await reactionMsg?.edit(
     editCollector.type === "content"

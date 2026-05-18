@@ -2,11 +2,18 @@ const { EmbedBuilder } = require("@erinjs/core");
 const db = require("../models/polls");
 const cron = require("node-cron");
 const Polls = require("./poll");
+const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
 
-let cronJob = null;
+let refreshCronJob = null;
+let clientRef = null;
+
+const pollQueue = new Map();
+let windowEndTime = 0;
 
 async function endPoll(client, poll) {
   try {
+    removeFromQueue(poll.messageId);
+
     const channel = await client.channels.resolve(poll.channelId);
     if (!channel) return;
 
@@ -71,18 +78,106 @@ async function endPoll(client, poll) {
   } catch {}
 }
 
-async function processDuePolls(client) {
-  const polls = await db.find({ ended: false });
-  if (!polls?.length) return;
+function addToQueue(pollData) {
+  const now = Date.now();
+  const endTime = Number(pollData.now) + Number(pollData.time);
+  const queueKey = pollData.messageId;
 
-  for (const poll of polls) {
-    const now = Number(poll.now);
-    const time = Number(poll.time);
-    const dueTime = now + time;
-    if (Date.now() >= dueTime) {
-      await endPoll(client, poll);
+  if (pollQueue.has(queueKey)) {
+    const existing = pollQueue.get(queueKey);
+    if (existing.timeout) {
+      clearTimeout(existing.timeout);
     }
   }
+
+  const delay = endTime - now;
+
+  if (delay <= 0) {
+    processQueue(clientRef, queueKey);
+    return;
+  }
+
+  const timeout = setTimeout(() => {
+    processQueue(clientRef, queueKey);
+  }, delay);
+
+  pollQueue.set(queueKey, {
+    timeout,
+    messageId: pollData.messageId,
+    endTime: Math.floor(endTime / 1000),
+  });
+}
+
+function removeFromQueue(messageId) {
+  const queued = pollQueue.get(messageId);
+
+  if (queued && queued.timeout) {
+    clearTimeout(queued.timeout);
+  }
+
+  pollQueue.delete(messageId);
+}
+
+async function processQueue(client, messageId) {
+  pollQueue.delete(messageId);
+
+  const poll = await db.findOne({ messageId });
+  if (!poll || poll.ended) return;
+
+  await endPoll(client, poll);
+}
+
+async function loadQueue() {
+  if (!clientRef) return;
+
+  const now = Math.floor(Date.now() / 1000);
+  windowEndTime = now + TWELVE_HOURS_SECONDS;
+
+  for (const [key, value] of pollQueue) {
+    if (value.timeout) {
+      clearTimeout(value.timeout);
+    }
+  }
+  pollQueue.clear();
+
+  try {
+    const currentTime = Date.now();
+    const windowEndMs = windowEndTime * 1000;
+
+    const polls = await db.find({ ended: false });
+
+    for (const poll of polls) {
+      const endTime = Number(poll.now) + Number(poll.time);
+      if (endTime <= currentTime) {
+        await endPoll(clientRef, poll);
+      } else if (endTime <= windowEndMs) {
+        addToQueue(poll);
+      }
+    }
+  } catch (err) {
+  }
+}
+
+function handleNew(pollData) {
+  if (!clientRef) return;
+
+  const now = Date.now();
+  const endTime = Number(pollData.now) + Number(pollData.time);
+
+  if (endTime <= windowEndTime * 1000 && endTime > now) {
+    addToQueue(pollData);
+  }
+}
+
+function handleDelete(messageId) {
+  removeFromQueue(messageId);
+}
+
+function getStatus() {
+  return {
+    queueSize: pollQueue.size,
+    windowEndTime,
+  };
 }
 
 async function initializePolls(client) {
@@ -100,7 +195,6 @@ async function initializePolls(client) {
       owner: poll.owner,
       lang: poll.lang,
     });
-    //await pollInstance.update();
 
     client.polls.set(poll.messageId, {
       poll: pollInstance,
@@ -111,23 +205,35 @@ async function initializePolls(client) {
   }
 }
 
-async function startPollsCron(client) {
-  if (cronJob) {
-    cronJob.stop();
+async function startCron(client) {
+  clientRef = client;
+
+  if (refreshCronJob) {
+    refreshCronJob.stop();
   }
 
   await initializePolls(client);
+  await loadQueue();
 
-  cronJob = cron.schedule("*/5 * * * * *", async () => {
-    await processDuePolls(client);
+  refreshCronJob = cron.schedule("0 */12 * * *", async () => {
+    await initializePolls(clientRef);
+    await loadQueue();
   });
 }
 
-function stopPollsCron() {
-  if (cronJob) {
-    cronJob.stop();
-    cronJob = null;
+function stopCron() {
+  if (refreshCronJob) {
+    refreshCronJob.stop();
+    refreshCronJob = null;
   }
+
+  for (const [key, value] of pollQueue) {
+    if (value.timeout) {
+      clearTimeout(value.timeout);
+    }
+  }
+  pollQueue.clear();
+  clientRef = null;
 }
 
-module.exports = { startPollsCron, stopPollsCron };
+module.exports = { startCron, stopCron, handleNew, handleDelete, getStatus };

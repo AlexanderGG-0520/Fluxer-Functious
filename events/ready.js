@@ -1,8 +1,9 @@
-const { startTimedRolesCron } = require("../functions/checkTimedRoles");
+const { startCron: startTimedRolesCron } = require("../functions/checkTimedRoles");
 const { startReminderCron } = require("../functions/checkReminders");
-const { startGiveawaysCron } = require("../functions/giveawaysEnd");
 const checkVoiceStates = require("../functions/checkVoiceStates");
-const { startPollsCron } = require("../functions/checkPolls");
+const { startCron: startPollsCron } = require("../functions/checkPolls");
+const { startCron: startScheduledCron } = require("../functions/checkScheduledMessages");
+const { startCron: startGiveawayCron } = require("../functions/checkGiveaways");
 const checkManage = require("../functions/checkManage");
 const checkRoles = require("../functions/checkRoles");
 const color = require("../functions/colorCodes");
@@ -12,8 +13,9 @@ module.exports = async (client) => {
 
   setTimeout(async () => { await checkVoiceStates(client) }, 4500);
   startTimedRolesCron(client);
-  startGiveawaysCron(client);
   startReminderCron(client);
+  startScheduledCron(client);
+  startGiveawayCron(client);
   await checkManage(client);
   await checkRoles(client);
   startPollsCron(client);

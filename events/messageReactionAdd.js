@@ -3,6 +3,7 @@ const editCollectorHandler = require("../reactionHandlers/editCollector");
 const roleReactionHandler = require("../reactionHandlers/roleReaction");
 const paginationHandler = require("../reactionHandlers/pagination");
 const collectorHandler = require("../reactionHandlers/collector");
+const scheduleCollectorHandler = require("../reactionHandlers/scheduleCollector");
 const giveawayHandler = require("../reactionHandlers/giveaway");
 const timezoneHandler = require("../reactionHandlers/timezone");
 const manageVC = require("../reactionHandlers/manageVC");
@@ -20,6 +21,7 @@ module.exports = async (client, message, user) => {
   const paginateCheck = client.paginate.get(userId);
   const pollCheck = client.polls.get(message.messageId);
   const collector = client.messageCollector.get(userId);
+  const scheduleCollector = client.scheduleCollector.get(userId);
   const editCollector = client.messageEdit.get(userId);
   const reloadSelection = client.reloadSelection.get(userId);
   const voiceUser = client.observedVoiceUsers.get(userId);
@@ -29,6 +31,7 @@ module.exports = async (client, message, user) => {
 
   if (reloadSelection && reloadSelection.messageId === message.messageId) return reloadSelectionHandler(client, message, userId, reloadSelection, emojiId);
   if (collector && (collector.messageId === message.messageId || (collector?.oldMessageId && collector.oldMessageId === message.messageId && collector.channelId === message.channelId))) return collectorHandler(client, message, userId, collector, reactionChan, reactionMsg, emojiId, "add");
+  if (scheduleCollector && scheduleCollector.botMessage === message.messageId && scheduleCollector.channelId === message.channelId) return scheduleCollectorHandler(client, message, userId, scheduleCollector, reactionChan, reactionMsg, emojiId, "add");
   if (editCollector && (editCollector.messageId === message.messageId || (editCollector?.botMessage && editCollector.botMessage === message.messageId && editCollector.channelId === message.channelId))) return editCollectorHandler(client, message, userId, editCollector, reactionChan, reactionMsg, emojiId, "add");
   if (paginateCheck && paginateCheck.message === message.messageId) return paginationHandler(client, message, paginateCheck, reactionMsg, emojiId, userId);
   if (pollCheck) return pollHandler(client, message, userId, pollCheck, reactionMsg, emojiId, "add");

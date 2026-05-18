@@ -34,7 +34,6 @@ module.exports = async (client, message, userId, collector, reactionChan, reacti
               db.roles.push({ msgId: m.id, chanId: targetChannel.id, roles: [...collector.rolesDone] });
               await client.database.updateGuild(message.guildId, { roles: db.roles });
 
-              console.log(targetChannel.id, message.channelId)
               if (targetChannel.id !== message.channelId) {
                 await reactionChan.send(`${client.translate.get(db.language, "Commands.roles.success")} <#${targetChannel.id}>`).catch(() => {});
               }
@@ -64,8 +63,9 @@ module.exports = async (client, message, userId, collector, reactionChan, reacti
             collector.roles.unshift([emoji.role, { name: emoji.name }]);
             collector.regex.unshift(emoji.name);
 
+            const roleDisplay = collector.useMention ? `<@&${emoji.role}>` : emoji.name;
             const newMsg = await (await client.channels.resolve(message.channelId))?.messages?.fetch(message.messageId)
-            return newMsg.edit(collector.type === "content" ? { content: newMsg.content.replace(`${emote} ${emoji.name}`, `{role:${emoji.name}}`) } : { embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(newMsg.embeds[0].description.replace(`${emote} ${emoji.name}`, `{role:${emoji.name}}`))] }).catch(() => { });
+            return newMsg.edit(collector.type === "content" ? { content: newMsg.content.replace(`${emote} ${roleDisplay}`, `{role:${emoji.name}}`) } : { embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(newMsg.embeds[0].description.replace(`${emote} ${roleDisplay}`, `{role:${emoji.name}}`))] }).catch(() => { });
         }
         return;
     }
@@ -74,10 +74,11 @@ module.exports = async (client, message, userId, collector, reactionChan, reacti
     const emote = message.emoji?.id ? `<:${emojiId}:${message.emoji.id}>` : emojiId;
     collector.rolesDone.push({ emoji: emote, role: collector.roles[0][0], name: collector.roles[0][1].name });
 
+    const roleDisplay = collector.useMention ? `<@&${collector.roles[0][0]}>` : collector.roles[0][1].name;
     reactionMsg?.edit(
         collector.type === "content"
-            ? { content: reactionMsg.content.replace(`{role:${collector.regex[0]}}`, `${emote} ${collector.roles[0][1].name}`) }
-            : { embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(reactionMsg.embeds[0].description.replace(`{role:${collector.regex[0]}}`, `${emote} ${collector.roles[0][1].name}`))] }
+            ? { content: reactionMsg.content.replace(`{role:${collector.regex[0]}}`, `${emote} ${roleDisplay}`) }
+            : { embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(reactionMsg.embeds[0].description.replace(`{role:${collector.regex[0]}}`, `${emote} ${roleDisplay}`))] }
     );
 
     collector.roles.shift();

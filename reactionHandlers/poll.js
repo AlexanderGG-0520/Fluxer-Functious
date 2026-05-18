@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require("@erinjs/core");
 const PollDB = require("../models/polls");
+const { handleDelete } = require("../functions/checkPolls");
 
 const emojis = [
     { name: "1️⃣", id: 0 }, { name: "2️⃣", id: 1 }, { name: "3️⃣", id: 2 },
@@ -12,8 +13,8 @@ module.exports = async (client, message, userId, pollCheck, reactionMsg, emojiId
     if (event === "remove") {
         if (client.reactions.get(userId)) {
           if (client.timeout.get(userId)) return;
-          client.timeout.set(userId, 5000);
-          setTimeout(() => client.timeout.delete(userId), 5000);
+          client.timeout.set(userId, 2500);
+          setTimeout(() => client.timeout.delete(userId), 2500);
           
           return client.users.get(userId)?.createDM().then(dm => dm.send(client.translate.get(pollCheck.language, "Events.messageReactionRemove.tooFast"))).catch(() => { });
         }
@@ -22,8 +23,8 @@ module.exports = async (client, message, userId, pollCheck, reactionMsg, emojiId
             if (!pollCheck.poll.users.find((u) => u.user === userId)) return;
             if (pollCheck.poll.users.find((u) => u.user === userId) && pollCheck.poll.users.find((u) => u.user === userId).option !== convert) return;
 
-            client.reactions.set(userId, 5000)
-            setTimeout(() => client.reactions.delete(userId), 5000)
+            client.reactions.set(userId, 3000)
+            setTimeout(() => client.reactions.delete(userId), 3000)
                         
             let tooMuch = [];
             if (pollCheck.poll.options.description.length > 80) tooMuch.push(`**${client.translate.get(pollCheck.language, "Events.messageReactionRemove.title")}**: ${pollCheck.poll.options.description}`)
@@ -58,6 +59,7 @@ module.exports = async (client, message, userId, pollCheck, reactionMsg, emojiId
     const convert = emojis.findIndex(e => e.name === emojiId);
 
     if (convert === 10 && pollCheck.owner === userId) {
+        handleDelete(message.messageId);
         await PollDB.findOneAndUpdate({ messageId: message.messageId }, { ended: true });
         await pollCheck.poll.update();
 
@@ -88,8 +90,8 @@ module.exports = async (client, message, userId, pollCheck, reactionMsg, emojiId
       const used = client.reactions.get(userId);
       if (used) {
         if (client.timeout.get(userId)) return;
-        client.timeout.set(userId, 5000);
-        setTimeout(() => client.timeout.delete(userId), 5000);
+        client.timeout.set(userId, 2500);
+        setTimeout(() => client.timeout.delete(userId), 2500);
         
         return client.users.get(userId)?.createDM().then(dm => dm.send(client.translate.get(pollCheck.lang, "Events.messageReactionAdd.tooFast"))).catch(() => {});
       }
@@ -97,8 +99,8 @@ module.exports = async (client, message, userId, pollCheck, reactionMsg, emojiId
       if (pollCheck.poll.users.find((u) => u.user === userId)) return;
       if (pollCheck.poll.users.find((u) => u.user === userId) && pollCheck.users.find((u) => u.user === userId).option !== convert) return;
 
-      client.reactions.set(userId, Date.now() + 5000);
-      setTimeout(() => client.reactions.delete(userId), 5000);
+      client.reactions.set(userId, Date.now() + 3000);
+      setTimeout(() => client.reactions.delete(userId), 3000);
         
       const fetchedUser = await client.users.fetch(userId);
       const avatarURL = fetchedUser.displayAvatarURL?.({ size: 256, format: 'png' }) ?? fetchedUser.avatarURL ?? "/assets/default-avatar.png";

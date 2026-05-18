@@ -1,4 +1,5 @@
 const { EmbedBuilder } = require("@erinjs/core");
+const { handleDelete } = require("../functions/checkGiveaways");
 
 module.exports = async (client, message, userId, db, emojiId, event = "add") => {
   const lang = db.lang || db.language;
@@ -19,6 +20,7 @@ module.exports = async (client, message, userId, db, emojiId, event = "add") => 
         );
 
       await db.updateOne({ ended: true, endDate });
+      handleDelete(db.messageId);
 
       const channel = await client.channels.resolve(db.channelId);
       const foundMsg = await channel?.messages?.fetch(db.messageId).catch(() => null);
@@ -41,6 +43,7 @@ module.exports = async (client, message, userId, db, emojiId, event = "add") => 
       endDate,
       pickedWinners: db.pickedWinners,
     });
+    handleDelete(db.messageId);
 
     const winnersEmbed = new EmbedBuilder()
       .setColor("#A52F05")

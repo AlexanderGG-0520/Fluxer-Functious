@@ -68,7 +68,8 @@ module.exports = {
           default:
             const embed = new EmbedBuilder()
               .setColor(`#A52F05`)
-              .setDescription(`**${client.translate.get(db.language, "Commands.roles.view")}**\n\n**${client.translate.get(db.language, "Commands.roles.explain")}**\n${client.translate.get(db.language, "Commands.roles.explain2", { "prefix": db.prefix })}\n\n**${client.translate.get(db.language, "Commands.roles.create")}**\n\`${db.prefix}roles ${client.translate.get(db.language, "Commands.roles.createExample", { "type": "content | embed" })}\`\n\n**${client.translate.get(db.language, "Commands.roles.editing")}**\n\`${db.prefix}roles edit [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**${client.translate.get(db.language, "Commands.roles.viewing")}**\n\`${db.prefix}roles view\`\n\n**${client.translate.get(db.language, "Commands.roles.deleting")}**\n\`${db.prefix}roles delete [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**${client.translate.get(db.language, "Commands.roles.reactionFix")}**\n${client.translate.get(db.language, "Commands.roles.reactionFixExplain")}\n\`${db.prefix}roles fix [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**${client.translate.get(db.language, "Commands.roles.dm")}**\n\`${db.prefix}roles dm\`\n\n**${client.translate.get(db.language, "Commands.roles.exclusiveTitle")}**\n${client.translate.get(db.language, "Commands.roles.exclusiveExplain")}\n\`${db.prefix}roles exclusive [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\``)
+              .setTitle(client.translate.get(db.language, "Commands.roles.view"))
+              .setDescription(`**${client.translate.get(db.language, "Commands.roles.explain")}**\n${client.translate.get(db.language, "Commands.roles.explain2", { "prefix": db.prefix })}\n\n**${client.translate.get(db.language, "Commands.roles.create")}**\n\`${db.prefix}roles ${client.translate.get(db.language, "Commands.roles.createExample", { "type": "content | embed" })}\`\n\n**${client.translate.get(db.language, "Commands.roles.editing")}**\n\`${db.prefix}roles edit [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**${client.translate.get(db.language, "Commands.roles.viewing")}**\n\`${db.prefix}roles view\`\n\n**${client.translate.get(db.language, "Commands.roles.deleting")}**\n\`${db.prefix}roles delete [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**${client.translate.get(db.language, "Commands.roles.reactionFix")}**\n${client.translate.get(db.language, "Commands.roles.reactionFixExplain")}\n\`${db.prefix}roles fix [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**${client.translate.get(db.language, "Commands.roles.dm")}**\n\`${db.prefix}roles dm\`\n\n**${client.translate.get(db.language, "Commands.roles.exclusiveTitle")}**\n${client.translate.get(db.language, "Commands.roles.exclusiveExplain")}\n\`${db.prefix}roles exclusive [${client.translate.get(db.language, "Commands.roles.msgId")} ID, e.g. ${message.id}]\`\n\n**Role Mentions**\nAdd \`{mention}\` to your message to use role mentions (<@&ID>) instead of role names when emojis are added. The \`{mention}\` text will be removed from the final message.`)
 
             clearCooldown(client, message.author.id);
             message.reply({ embeds: [embed] });
@@ -191,17 +192,18 @@ module.exports = {
                 const targetChannel = channels.find(e => e.id === editMsg.chanId);
                 const isDifferentChannel = targetChannel.id !== message.channel.id;
 
-                const setupEmbed = isDifferentChannel
-                    ? new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.roles.react")}\n\n\`\`\`txt\n${startText}\n\`\`\``).setColor(`#A52F05`)
-                    : new EmbedBuilder().setVideo("https://i.imgur.com/TxuKLjb.mp4").setDescription(`${client.translate.get(db.language, "Commands.roles.react", {
+                const reactMentionLine = `\n\n${client.translate.get(db.language, "Commands.roles.reactMention")}`;
+                const setupEmbed = new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.roles.react", {
                         "example": `\`\`\`
 **This is an example message**
 
+{mention}
 Color Roles:
 {role:Blue}
 {role:Red}
 {role:Purple}
-\`\`\`` })}\n\n\`\`\`txt\n${startText}\n\`\`\``).setColor(`#A52F05`);
+\`\`\``,
+                })}${reactMentionLine}\n\n\`\`\`txt\n${startText}\n\`\`\``).setColor(`#A52F05`)
 
                 const sendChannel = isDifferentChannel ? targetChannel : message.channel;
                 if (isDifferentChannel) {
@@ -227,6 +229,7 @@ Color Roles:
                     rolesDone: [],
                     roles: [],
                     regex: [],
+                    useMention: false,
                 });
 
                 const editTimeout = setTimeout(async () => {
@@ -294,20 +297,23 @@ Color Roles:
                     return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.roles.pick")}\n\n${client.translate.get(db.language, "Commands.language.example")}: ${db.prefix}roles content <#channel>\n${client.translate.get(db.language, "Commands.language.example")}: ${db.prefix}roles embed <#channel>`).setColor(`#FF0000`)] });
                 }
 
-                const isDifferentChannel = targetChannel.id !== message.channel.id;
-
+                const reactMentionLineCreate = `\n\n${client.translate.get(db.language, "Commands.roles.reactMention")}`;
                 const setupEmbed = new EmbedBuilder()
-                    .setVideo("https://i.imgur.com/TxuKLjb.mp4")
-                    .setDescription(client.translate.get(db.language, "Commands.roles.react", {
-                        "example": `\`\`\`
+                    //.setVideo("https://i.imgur.com/TxuKLjb.mp4")
+                    .setDescription(
+                        `${client.translate.get(db.language, "Commands.roles.react", {
+                            "example": `\`\`\`
 **This is an example message**
 
+{mention}
 Color Roles:
 {role:Blue}
 {role:Red}
 {role:Purple}
 \`\`\`
-` }))
+`,
+                        })}${reactMentionLineCreate}`,
+                    )
                     .setColor(`#A52F05`);
                 
                 await message.delete().catch(() => { });
@@ -330,6 +336,7 @@ Color Roles:
                     rolesDone: [],
                     roles: [],
                     regex: [],
+                    useRoleMention: false,
                 });
 
                 const createTimeout = setTimeout(async () => {

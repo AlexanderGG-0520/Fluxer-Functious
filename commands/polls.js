@@ -2,6 +2,7 @@ const { EmbedBuilder, MessageFlags } = require("@erinjs/core");
 const Polls = require(`../functions/poll`)
 const dhms = require(`../functions/dhms`);
 const PollDB = require("../models/polls");
+const { handleNew, handleDelete } = require("../functions/checkPolls");
 const Paginator = require(`../functions/pagination`);
 
 async function endPollEarly(client, poll, db) {
@@ -52,7 +53,7 @@ async function endPollEarly(client, poll, db) {
 
     await msg.removeAllReactions().catch(() => { });
     client.polls.delete(poll.messageId);
-  } catch(e) {console.log(e)}
+  } catch(e) { }
 }
 
 module.exports = {
@@ -132,6 +133,7 @@ module.exports = {
           });
         }
 
+        handleDelete(poll.messageId);
         await endPollEarly(client, poll, db);
         return message.reply({
           embeds: [new EmbedBuilder()
@@ -191,7 +193,8 @@ module.exports = {
         }
 
         msg.guildId = message.guildId
-        await poll.start(msg, poll, { tooMuch, pollNumber: nextPollNumber });
+        const pollData = await poll.start(msg, poll, { tooMuch, pollNumber: nextPollNumber });
+        if (pollData) handleNew(pollData);
         await message.delete().catch(() => { });
         });
     },
