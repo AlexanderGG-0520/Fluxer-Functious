@@ -60,8 +60,12 @@ async function sendScheduledMessage(client, guildId, msgData) {
         const channel = guild.channels.get(msgData.channelId) || await guild.channels.fetch(msgData.channelId);
         if (!channel) return { success: false };
 
+        if (msgData.type === "command") {
+            return await executeScheduledCommand(client, guild, channel, msgData);
+        }
+
         const context = gatherContext(client, guildId, msgData.channelId, msgData.createdBy, msgData.sendCount || 0);
-        
+
         let processedContent = null;
         let processedEmbedData = null;
 
@@ -73,9 +77,9 @@ async function sendScheduledMessage(client, guildId, msgData) {
             if (ed.title) processedEmbedData.title = processTemplate(ed.title, { ...context });
             if (ed.description) processedEmbedData.description = processTemplate(ed.description, { ...context });
             if (ed.footer?.text) {
-                processedEmbedData.footer = { 
+                processedEmbedData.footer = {
                     text: processTemplate(ed.footer.text, { ...context }),
-                    iconURL: ed.footer.iconURL 
+                    iconURL: ed.footer.iconURL
                 };
             }
             if (ed.image) processedEmbedData.image = processTemplate(ed.image, { ...context });
@@ -116,11 +120,72 @@ async function sendScheduledMessage(client, guildId, msgData) {
             }
         }
 
-      if (sendSuccess && msgData.recurring && msgData.recurring !== "none")
+      if (sendSuccess && msgData.recurring && msgData.recurring !== "none") {
         await scheduleNextRecurring(client, guildId, msgData);
+      }
 
         return { success: sendSuccess };
     } catch (err) {
+        return { success: false, error: err };
+    }
+}
+
+async function executeScheduledCommand(client, guild, channel, msgData) {
+    try {
+        const triggerMessage = await channel.send({
+            content: `📅 Executing scheduled ${msgData.commandName}...`,
+            allowedMentions: { parse: [] }
+        });
+
+        const creator = await client.users.fetch(msgData.createdBy).catch(() => null);
+
+        const simulatedMessage = {
+            id: triggerMessage.id,
+            channel: channel,
+            guild: guild,
+            guildId: guild.id,
+            author: creator || { id: msgData.createdBy },
+            content: `${msgData.commandArgs.join(" | ")}`,
+            createdAt: new Date(),
+            delete: async () => {
+               
+            },
+            reply: async (options) => {
+                try {
+                    return await channel.send(options);
+                } catch (err) {
+                    console.error(`Error replying to scheduled command:`, err);
+                }
+            },
+            fetch: async () => triggerMessage,
+        };
+
+        const guildData = await client.database.getGuild(guild.id);
+        let commandModule;
+        try {
+            commandModule = require(`../commands/${msgData.commandName}`);
+        } catch (err) {
+            console.error(`Failed to load command module for ${msgData.commandName}:`, err);
+            await triggerMessage.edit({ content: `❌ Failed to execute scheduled ${msgData.commandName}: Command not found` });
+            return { success: false, error: "Command not found" };
+        }
+
+        try {
+            await commandModule.run(client, simulatedMessage, msgData.commandArgs.join(" | ").split(" "), guildData);
+            await triggerMessage.edit({ content: `✅ Executed scheduled ${msgData.commandName}` });
+        } catch (err) {
+            console.error(`Error executing scheduled command ${msgData.commandName}:`, err);
+            await triggerMessage.edit({ content: `❌ Failed to execute scheduled ${msgData.commandName}: ${err.message}` });
+            return { success: false, error: err };
+        }
+
+        if (msgData.recurring && msgData.recurring !== "none") {
+            await scheduleNextRecurring(client, guild.id, msgData);
+        }
+
+        return { success: true };
+    } catch (err) {
+        console.error(`Error in executeScheduledCommand:`, err);
         return { success: false, error: err };
     }
 }
@@ -163,26 +228,39 @@ async function scheduleNextRecurring(client, guildId, msgData) {
 
         if (!interval) return;
 
-        nextTimestamp = msgData.timestamp;
+        // Use the original timestamp as base and add interval to get the next occurrence
+        // This ensures the exact same time of day as the original schedule
+        nextTimestamp = msgData.timestamp + interval;
 
+        // If the next occurrence is still in the past (e.g., bot was offline for multiple intervals),
+        // keep adding the interval until we're in the future
         while (nextTimestamp <= now) {
             nextTimestamp += interval;
         }
 
-        const newMsgData = {
-            ...msgData,
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            timestamp: nextTimestamp,
-            sendCount: (msgData.sendCount || 0) + 1,
-            createdAt: Math.floor(Date.now() / 1000),
-        };
+        // Update the existing message's timestamp instead of creating a new one
+        const guildData = await client.database.getGuild(guildId);
+        const updatedMessages = guildData.scheduledMessages?.map(m => {
+            if (m.id === msgData.id) {
+                return {
+                    ...m,
+                    timestamp: nextTimestamp,
+                    sendCount: (m.sendCount || 0) + 1,
+                };
+            }
+            return m;
+        });
 
-        const guildData = await clientRef.database.getGuild(guildId);
-        const updated = [...(guildData.scheduledMessages || []), newMsgData];
-        await clientRef.database.updateGuild(guildId, { scheduledMessages: updated }, true);
+        await client.database.updateGuild(guildId, { scheduledMessages: updatedMessages }, true);
 
-        addToQueue(guildId, newMsgData);
+        // Update the queue with the new timestamp only if within the 12-hour window
+        removeFromQueue(guildId, msgData.id);
+        if (nextTimestamp <= windowEndTime) {
+            const updatedMsgData = { ...msgData, timestamp: nextTimestamp, sendCount: (msgData.sendCount || 0) + 1 };
+            addToQueue(guildId, updatedMsgData);
+        }
     } catch (err) {
+        console.error(`Error scheduling next recurring:`, err);
     }
 }
 
@@ -197,21 +275,24 @@ async function processQueue(guildId, msgId) {
         const msgData = guildData.scheduledMessages.find(m => m.id === msgId);
         if (!msgData) return;
 
-        const updated = guildData.scheduledMessages.filter(m => m.id !== msgId);
-        if (updated.length !== guildData.scheduledMessages.length) {
-            await clientRef.database.updateGuild(guildId, { scheduledMessages: updated }, true);
-        }
-
         const result = await sendScheduledMessage(clientRef, guildId, msgData);
-        
-        if (!result.success && msgData.recurring) {
-            const guildData2 = await clientRef.database.getGuild(guildId, false);
-            if (guildData2) {
-                const updated2 = [...(guildData2.scheduledMessages || []), msgData];
-                await clientRef.database.updateGuild(guildId, { scheduledMessages: updated2 }, true);
+
+        if (result.success) {
+            // Only delete from database if it's not recurring
+            // Recurring messages are updated in scheduleNextRecurring
+            if (!msgData.recurring || msgData.recurring === "none") {
+                const updated = guildData.scheduledMessages.filter(m => m.id !== msgId);
+                if (updated.length !== guildData.scheduledMessages.length) {
+                    await clientRef.database.updateGuild(guildId, { scheduledMessages: updated }, true);
+                }
+            }
+        } else {
+            if (!msgData.recurring || msgData.recurring === "none") {
+                console.error(`Failed to send scheduled message ${msgId} in guild ${guildId}`);
             }
         }
     } catch (err) {
+        console.error(`Error processing queue for ${msgId}:`, err);
     }
 }
 
@@ -230,7 +311,9 @@ function addToQueue(guildId, msgData) {
     const delay = msgTime - now;
 
     if (delay <= 0) {
-        processQueue(guildId, msgData.id);
+        if (!scheduledQueue.has(queueKey)) {
+            processQueue(guildId, msgData.id);
+        }
         return;
     }
 
@@ -273,25 +356,45 @@ async function loadQueue() {
     try {
         const db = clientRef.database;
         const allGuilds = await db.guildModel.find({
-            "scheduledMessages.0": { $exists: true }
+            "scheduledMessages.0": { $exists: true },
+            "scheduledMessages.timestamp": { $lte: windowEndTime, $gt: now }
         });
 
         for (const guildData of allGuilds) {
             const guildId = guildData.id;
-            for (const msgData of guildData.scheduledMessages) {
-                if (msgData.timestamp <= now) {
+            const upcomingMessages = guildData.scheduledMessages.filter(m => m.timestamp <= windowEndTime && m.timestamp > now);
+
+            for (const msgData of upcomingMessages) {
+                addToQueue(guildId, msgData);
+            }
+        }
+
+        const pastDueGuilds = await db.guildModel.find({
+            "scheduledMessages.0": { $exists: true },
+            "scheduledMessages.timestamp": { $lte: now }
+        });
+
+        for (const guildData of pastDueGuilds) {
+            const guildId = guildData.id;
+            const pastDueMessages = guildData.scheduledMessages.filter(m => m.timestamp <= now);
+
+            for (const msgData of pastDueMessages) {
+                const queueKey = `${guildId}:${msgData.id}`;
+                if (!scheduledQueue.has(queueKey)) {
                     processQueue(guildId, msgData.id);
-                } else if (msgData.timestamp <= windowEndTime) {
-                    addToQueue(guildId, msgData);
                 }
             }
         }
     } catch (err) {
+        console.error(`Error loading schedule queue:`, err);
     }
 }
 
 function handleNew(guildId, msgData) {
     const now = Math.floor(Date.now() / 1000);
+    const queueKey = `${guildId}:${msgData.id}`;
+
+    if (scheduledQueue.has(queueKey)) return;
 
     if (msgData.timestamp <= now) {
         processQueue(guildId, msgData.id);
@@ -307,12 +410,29 @@ function handleDelete(guildId, msgId) {
 function handleEdit(guildId, msgId, updatedData) {
     removeFromQueue(guildId, msgId);
     const now = Math.floor(Date.now() / 1000);
+    const queueKey = `${guildId}:${updatedData.id}`;
+
+    if (scheduledQueue.has(queueKey)) return;
 
     if (updatedData.timestamp <= now) {
         processQueue(guildId, updatedData.id);
     } else if (updatedData.timestamp <= windowEndTime) {
         addToQueue(guildId, updatedData);
     }
+}
+
+function getRemainingWindowMs() {
+    const now = Date.now();
+    const windowEndMs = windowEndTime * 1000;
+    return Math.max(0, windowEndMs - now);
+}
+
+function getQueueStatus() {
+    return {
+        queueSize: scheduledQueue.size,
+        windowEndTime,
+        remainingWindowMs: getRemainingWindowMs()
+    };
 }
 
 function startCron(client) {
@@ -355,4 +475,6 @@ module.exports = {
     removeFromQueue,
     processQueue,
     sendScheduledMessage,
+    getQueueStatus,
+    getRemainingWindowMs,
 };

@@ -8,6 +8,7 @@
       "unavail": "This command is currently unavailable",
       "perms": "You don't have the required permissions to use this command",
       "perms2": "Permission needed",
+      "perms3": "If you know you have the correct permission, give any of your roles a random permission. This lets the bot see the updated permissions as sometimes bots can forget what permissions users have.",
       "prefix": "My prefix is",
       "prefix2": "To get started, type",
       "noRoles": "There are no roles in your message, provide some by following this example",
@@ -401,7 +402,9 @@
     },
     "info": {
       "description": "Stats on the bot",
-      "start": "Random Information",
+      "start": "Information",
+      "stats": "Statistics",
+      "system": "System",
       "servers": "Servers",
       "giveaways": "Giveaways",
       "polls": "Polls",

@@ -1,15 +1,19 @@
+const { startCron: startScheduledCron } = require("../functions/checkScheduledMessages");
 const { startCron: startTimedRolesCron } = require("../functions/checkTimedRoles");
+const { startCron: startGiveawayCron } = require("../functions/checkGiveaways");
+const { startCron: startPollsCron } = require("../functions/checkPolls");
 const { startReminderCron } = require("../functions/checkReminders");
 const checkVoiceStates = require("../functions/checkVoiceStates");
-const { startCron: startPollsCron } = require("../functions/checkPolls");
-const { startCron: startScheduledCron } = require("../functions/checkScheduledMessages");
-const { startCron: startGiveawayCron } = require("../functions/checkGiveaways");
 const checkManage = require("../functions/checkManage");
 const checkRoles = require("../functions/checkRoles");
 const color = require("../functions/colorCodes");
 
 module.exports = async (client) => {
   console.log(color("%", `%2[Bot_Ready]%7 :: ${client.user.username} is ready`));
+  
+  if (client.cluster) {
+    client.cluster.triggerReady();
+  }
 
   setTimeout(async () => { await checkVoiceStates(client) }, 4500);
   startTimedRolesCron(client);

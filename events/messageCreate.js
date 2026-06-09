@@ -111,19 +111,25 @@ module.exports = async (client, message) => {
   }
 
   if (commandfile.config.permissions?.name && !member?.permissions.has(commandfile.config.permissions.bitField) && !client.config.owners.includes(message.author.id) && !bypass) {
+    const permCooldownKey = `${message.author.id}-perms`;
+    if (client.timeout.has(permCooldownKey)) return;
+
     try {
       const freshMember = await message.guild.fetchMember(message.author.id);
       if (freshMember?.permissions.has(commandfile.config.permissions.bitField)) {
         member = freshMember;
         message.guild.members.set(freshMember.id, freshMember);
       } else {
+        client.timeout.set(permCooldownKey, true);
+        setTimeout(() => client.timeout.delete(permCooldownKey), 2500);
+
         return message
           .reply({
             embeds: [
               new EmbedBuilder()
                   .setColor("#FF0000")
                   .setDescription(
-                    `${client.translate.get(db.language, "Events.messageCreate.perms")}.\n${client.translate.get(db.language, "Events.messageCreate.perms2")}: [${String(commandfile.config.permissions.name)}]`,
+                    `${client.translate.get(db.language, "Events.messageCreate.perms")}.\n${client.translate.get(db.language, "Events.messageCreate.perms2")}: [${String(commandfile.config.permissions.name)}]\n\n${client.translate.get(db.language, "Events.messageCreate.perms3")}`,
                   ),
               ],
             },
@@ -131,6 +137,9 @@ module.exports = async (client, message) => {
           .catch(() => {});
       }
     } catch {
+      client.timeout.set(permCooldownKey, true);
+      setTimeout(() => client.timeout.delete(permCooldownKey), 2500);
+
       return message
         .reply(
           {
@@ -138,7 +147,7 @@ module.exports = async (client, message) => {
               new EmbedBuilder()
                 .setColor("#FF0000")
                 .setDescription(
-                  `${client.translate.get(db.language, "Events.messageCreate.perms")}.\n${client.translate.get(db.language, "Events.messageCreate.perms2")}: [${String(commandfile.config.permissions.name)}]`,
+                  `${client.translate.get(db.language, "Events.messageCreate.perms")}.\n${client.translate.get(db.language, "Events.messageCreate.perms2")}: [${String(commandfile.config.permissions.name)}]\n\n${client.translate.get(db.language, "Events.messageCreate.perms3")}`,
                 ),
             ],
           },

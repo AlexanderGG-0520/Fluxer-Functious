@@ -8,6 +8,7 @@
       "unavail": "هذا الأمر غير متاح حاليًا",
       "perms": "ليس لديك الصلاحيات المطلوبة لاستخدام هذا الأمر",
       "perms2": "الإذن مطلوب",
+      "perms3": "If you know you have the correct permission, give any of your roles a random permission. This lets the bot see the updated permissions as sometimes bots can forget what permissions users have.",
       "prefix": "البادئة الخاصة بي",
       "prefix2": "للبدء، اكتب",
       "noRoles": "لا توجد أدوار في رسالتك، قم بتوفير بعض من خلال اتباع هذا المثال",
@@ -398,7 +399,9 @@
     },
     "info": {
       "description": "إحصائيات على البوت",
-      "start": "معلومات عشوائية",
+      "start": "معلومات",
+      "stats": "Statistics",
+      "system": "System",
       "servers": "السيرفرات",
       "giveaways": "الهبة",
       "polls": "تصويتات",

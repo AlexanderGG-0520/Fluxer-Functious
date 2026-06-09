@@ -285,19 +285,21 @@ async function showEditMenu(client, session, guildId) {
     const scheduled = db.scheduledMessages || [];
     const msgData = scheduled[session.editingIndex - 1];
 
+    const isCommand = msgData.type === "command";
+
   const menuEmbed = new EmbedBuilder()
     .setColor("#A52F05")
     .setTitle(`${client.translate.get(db.language, "Commands.schedule.editSchedMsg")} #${session.editingIndex}`)
     .setDescription(
       `**${client.translate.get(db.language, "Commands.schedule.editWhat")}**
 
-1️⃣ **${client.translate.get(db.language, "Commands.schedule.msgContent")}** - ${msgData.type === "content" ? client.translate.get(db.language, "Commands.schedule.textMsg") : client.translate.get(db.language, "Commands.schedule.embedFields")}
-2️⃣ **${client.translate.get(db.language, "Commands.schedule.sendTime")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: <t:${msgData.timestamp}:f> (<t:${msgData.timestamp}:R>)
-3️⃣ **${client.translate.get(db.language, "Commands.schedule.recurring")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.recurring || client.translate.get(db.language, "Commands.schedule.none")}
-4️⃣ **${client.translate.get(db.language, "Commands.schedule.webhook")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.webhook?.name || client.translate.get(db.language, "Commands.schedule.disabled")}
+${isCommand ? "1️⃣ **Command Arguments**" : `1️⃣ **${client.translate.get(db.language, "Commands.schedule.msgContent")}** - ${msgData.type === "content" ? client.translate.get(db.language, "Commands.schedule.textMsg") : client.translate.get(db.language, "Commands.schedule.embedFields")}`}
+${isCommand ? "2️⃣" : "2️⃣"} **${client.translate.get(db.language, "Commands.schedule.sendTime")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: <t:${msgData.timestamp}:f> (<t:${msgData.timestamp}:R>)
+${isCommand ? "3️⃣" : "3️⃣"} **${client.translate.get(db.language, "Commands.schedule.recurring")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.recurring || client.translate.get(db.language, "Commands.schedule.none")}
+${isCommand ? "" : `4️⃣ **${client.translate.get(db.language, "Commands.schedule.webhook")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.webhook?.name || client.translate.get(db.language, "Commands.schedule.disabled")}`}
 
 ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`);
-        
+
 
     try {
         const chan = await client.channels.resolve(session.channelId);
@@ -311,13 +313,16 @@ ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`);
         session.waitingForWebhookName = false;
         session.waitingForWebhookAvatar = false;
         session.waitingForRecurring = false;
+        session.waitingForCommandArgs = false;
 
         const updatedBotMsg = await chan?.messages?.fetch(session.botMessage).catch(() => null);
         if (updatedBotMsg) {
             await updatedBotMsg.react("1️⃣");
             await updatedBotMsg.react("2️⃣");
             await updatedBotMsg.react("3️⃣");
-            await updatedBotMsg.react("4️⃣");
+            if (!isCommand) {
+                await updatedBotMsg.react("4️⃣");
+            }
             await updatedBotMsg.react(client.config.emojis.cross);
         }
     } catch {}
@@ -336,6 +341,11 @@ async function saveEditChanges(client, session, guildId) {
         webhook: session.webhook,
         recurring: session.recurring,
     };
+
+    if (scheduled[index].type === "command") {
+        updatedData.commandName = session.commandName || scheduled[index].commandName;
+        updatedData.commandArgs = session.commandArgs || scheduled[index].commandArgs;
+    }
 
     scheduled[index] = updatedData;
     await client.database.updateGuild(guildId, { scheduledMessages: scheduled });
@@ -569,6 +579,55 @@ async function ScheduleCollector(client, message, db) {
             return;
         }
 
+        if (session.type === "command") {
+            let content = session.content;
+            let embedData = session.embedData;
+
+            const msgData = {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                channelId: session.targetChannelId,
+                type: session.type,
+                timestamp: session.timestamp,
+                content: content || null,
+                embedData: embedData || null,
+                createdAt: Math.floor(Date.now() / 1000),
+                createdBy: message.author.id,
+                webhook: session.webhook || null,
+                recurring: session.recurring || "none",
+                sendCount: 1,
+            };
+
+            if (session.type === "command") {
+                msgData.commandName = session.commandName;
+                msgData.commandArgs = session.commandArgs;
+            }
+
+            const guildData = await client.database.getGuild(message.guildId);
+            const updated = [...(guildData.scheduledMessages || []), msgData];
+            await client.database.updateGuild(message.guildId, { scheduledMessages: updated });
+
+            checkScheduled.handleNew(message.guildId, msgData);
+            client.scheduleCollector.delete(message.author.id);
+            clearTimeout(session.timeout);
+
+            let responseText = client.translate.get(db.language, "Functions.schedule.success", { time: `<t:${session.timestamp}:R>`, channel: `<#${session.targetChannelId}>` });
+            if (session.webhook?.name) {
+                responseText += `\n${client.translate.get(db.language, "Functions.schedule.webhookAddon")}: ${session.webhook.name}`;
+            }
+            if (session.recurring && session.recurring !== "none") {
+                responseText += `\n${client.translate.get(db.language, "Commands.schedule.repeats")}: ${session.recurring}`;
+            }
+
+            message.channel.send({ embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(responseText)] });
+
+            const chan = await client.channels.resolve(session.channelId);
+            const botMsg = await chan?.messages?.fetch(session.botMessage).catch(() => null);
+            if (botMsg) {
+                await botMsg.delete().catch(() => {});
+            }
+            return;
+        }
+
         session.waitingForTime = true;
 
         const timeEmbed = new EmbedBuilder()
@@ -583,6 +642,25 @@ async function ScheduleCollector(client, message, db) {
                 await botMsg.edit({ embeds: [timeEmbed] });
             }
         } catch {}
+        return;
+    }
+
+    if (session.waitingForCommandArgs) {
+        const newArgs = message.content.trim();
+        const parsedArgs = newArgs.split("|").map(x => x.trim()).filter(x => x);
+
+        if (!parsedArgs[0]) {
+            return message.reply({ embeds: [new EmbedBuilder().setColor("#FF0000").setDescription("Please provide valid arguments. Use `|` to separate arguments.")] }).then(m => {
+                setTimeout(() => m.delete().catch(() => {}), 5000);
+            });
+        }
+
+        session.commandArgs = parsedArgs;
+        session.waitingForCommandArgs = false;
+
+        await saveEditChanges(client, session, message.guildId);
+        await showEditMenu(client, session, message.guildId);
+        message.delete().catch(() => {});
         return;
     }
 
@@ -626,6 +704,10 @@ async function ScheduleCollector(client, message, db) {
             return;
         }
 
+        if (session.type === "command") {
+            return askRecurring(client, session);
+        }
+
         let content = session.content;
         let embedData = session.embedData;
 
@@ -653,6 +735,11 @@ async function ScheduleCollector(client, message, db) {
             sendCount: 1,
         };
 
+        if (session.type === "command") {
+            msgData.commandName = session.commandName;
+            msgData.commandArgs = session.commandArgs;
+        }
+
         const guildData = await client.database.getGuild(message.guildId);
         const updated = [...(guildData.scheduledMessages || []), msgData];
         await client.database.updateGuild(message.guildId, { scheduledMessages: updated });
@@ -669,13 +756,14 @@ async function ScheduleCollector(client, message, db) {
             responseText += `\n${client.translate.get(db.language, "Commands.schedule.repeats")}: ${session.recurring}`;
         }
 
-        message.reply({ embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(responseText)] });
+        message.channel.send({ embeds: [new EmbedBuilder().setColor("#A52F05").setDescription(responseText)] });
 
         const chan = await client.channels.resolve(session.channelId);
         const botMsg = await chan?.messages?.fetch(session.botMessage).catch(() => null);
         if (botMsg) {
             await botMsg.delete().catch(() => {});
-        }        
+        }
+
         return;
     }
 

@@ -41,6 +41,9 @@ module.exports = {
 **${client.translate.get(db.language, "Commands.schedule.getStarted")}:**
 ┕ \`${prefix}schedule content #channel\` — ${client.translate.get(db.language, "Commands.schedule.textMsg")}
 ┕ \`${prefix}schedule embed #channel\` — ${client.translate.get(db.language, "Commands.schedule.richEmbed")}
+┕ \`${prefix}schedule poll <time> | <title> | <option1> | <option2>...\` — Schedule a poll
+┕ \`${prefix}schedule giveaway <time> | <winners> | <prize>\` — Schedule a giveaway
+┕ \`${prefix}schedule remind <time> <message>\` — Schedule a reminder
 
 **${client.translate.get(db.language, "Commands.schedule.managing")}:**
 ┕ \`${prefix}schedule view\` — ${client.translate.get(db.language, "Commands.schedule.listUpcome")}
@@ -110,12 +113,23 @@ module.exports = {
                     }
 
                     const msgData = scheduled[index - 1];
+                    let typeDisplay;
+                    if (msgData.type === "content") {
+                        typeDisplay = client.translate.get(db.language, "Commands.schedule.content");
+                    } else if (msgData.type === "embed") {
+                        typeDisplay = client.translate.get(db.language, "Commands.schedule.embed");
+                    } else if (msgData.type === "command") {
+                        typeDisplay = `Command: ${msgData.commandName}`;
+                    } else {
+                        typeDisplay = msgData.type;
+                    }
+
                     const infoEmbed = new EmbedBuilder()
                         .setColor("#A52F05")
                         .setDescription(
                             `**#${index} ${client.translate.get(db.language, "Commands.schedule.viewMsg")}**
 
-**${client.translate.get(db.language, "Commands.schedule.type")}:** ${msgData.type === "content" ? client.translate.get(db.language, "Commands.schedule.content") : client.translate.get(db.language, "Commands.schedule.embed")}
+**${client.translate.get(db.language, "Commands.schedule.type")}:** ${typeDisplay}
 **${client.translate.get(db.language, "Commands.schedule.sendsTo")}:** <#${msgData.channelId}>
 **${client.translate.get(db.language, "Commands.schedule.time")}:** <t:${msgData.timestamp}:f> (<t:${msgData.timestamp}:R>)
 ${msgData.recurring && msgData.recurring !== "none" ? `**${client.translate.get(db.language, "Commands.schedule.repeats")}:** ${msgData.recurring}\n` : ""}${msgData.webhook?.name ? `**${client.translate.get(db.language, "Commands.schedule.webhook")}:** ${msgData.webhook.name}\n` : ""}
@@ -129,7 +143,7 @@ ${msgData.recurring && msgData.recurring !== "none" ? `**${client.translate.get(
                             .setColor("#A52F05")
                             .setDescription(msgData.content || client.translate.get(db.language, "Commands.schedule.noContent"));
                         embedsToSend.push(contentEmbed);
-                    } else {
+                    } else if (msgData.type === "embed") {
                         const ed = msgData.embedData || {};
                         const contentEmbed = new EmbedBuilder()
                             .setColor(ed.color || "#A52F05");
@@ -142,6 +156,11 @@ ${msgData.recurring && msgData.recurring !== "none" ? `**${client.translate.get(
                         if (ed.thumbnail) contentEmbed.setThumbnail(ed.thumbnail);
                         if (ed.useTimestamp) contentEmbed.setTimestamp();
                         embedsToSend.push(contentEmbed);
+                    } else if (msgData.type === "command") {
+                        const commandEmbed = new EmbedBuilder()
+                            .setColor("#A52F05")
+                            .setDescription(`**Command:** ${msgData.commandName}\n**Arguments:** ${msgData.commandArgs.join(" | ")}`);
+                        embedsToSend.push(commandEmbed);
                     }
 
                     message.reply({ embeds: embedsToSend, allowedMentions: { parse: [] } });
@@ -153,7 +172,19 @@ ${msgData.recurring && msgData.recurring !== "none" ? `**${client.translate.get(
                     let extra = "";
                     if (msg.recurring && msg.recurring !== "none") extra += " 🔁";
                     if (msg.webhook?.name) extra += " 🕸";
-                    return `**#${i + 1}**${extra}\n**${client.translate.get(db.language, "Commands.schedule.type")}:** ${msg.type === "content" ? client.translate.get(db.language, "Commands.schedule.content") : client.translate.get(db.language, "Commands.schedule.embed")}\n**${client.translate.get(db.language, "Commands.schedule.channel")}:** <#${msg.channelId}>\n**${client.translate.get(db.language, "Commands.schedule.time")}:** <t:${msg.timestamp}:R>`;
+
+                    let typeDisplay;
+                    if (msg.type === "content") {
+                        typeDisplay = client.translate.get(db.language, "Commands.schedule.content");
+                    } else if (msg.type === "embed") {
+                        typeDisplay = client.translate.get(db.language, "Commands.schedule.embed");
+                    } else if (msg.type === "command") {
+                        typeDisplay = `Command: ${msg.commandName}`;
+                    } else {
+                        typeDisplay = msg.type;
+                    }
+
+                    return `**#${i + 1}**${extra}\n**${client.translate.get(db.language, "Commands.schedule.type")}:** ${typeDisplay}\n**${client.translate.get(db.language, "Commands.schedule.channel")}:** <#${msg.channelId}>\n**${client.translate.get(db.language, "Commands.schedule.time")}:** <t:${msg.timestamp}:R>`;
                 });
                 const chunks = Array.from({ length: Math.ceil(items.length / 3) }, (_, i) => items.slice(i * 3, i * 3 + 3));
                 const legend = `🔁 = ${client.translate.get(db.language, "Commands.schedule.recurring")}  •  🕸 = ${client.translate.get(db.language, "Commands.schedule.webhook")}`;
@@ -198,10 +229,10 @@ ${msgData.recurring && msgData.recurring !== "none" ? `**${client.translate.get(
                     .setDescription(
                         `**${client.translate.get(db.language, "Commands.schedule.editWhat")}**
 
-1️⃣ **${client.translate.get(db.language, "Commands.schedule.msgContent")}** - ${msgData.type === "content" ? client.translate.get(db.language, "Commands.schedule.textMsg") : client.translate.get(db.language, "Commands.schedule.embedFields")}
-2️⃣ **${client.translate.get(db.language, "Commands.schedule.sendTime")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: <t:${msgData.timestamp}:f> (<t:${msgData.timestamp}:R>)
-3️⃣ **${client.translate.get(db.language, "Commands.schedule.recurring")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.recurring || client.translate.get(db.language, "Commands.schedule.none")}
-4️⃣ **${client.translate.get(db.language, "Commands.schedule.webhook")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.webhook?.name || client.translate.get(db.language, "Commands.schedule.disabled")}
+${msgData.type === "command" ? "1️⃣ **Command Arguments**" : `1️⃣ **${client.translate.get(db.language, "Commands.schedule.msgContent")}** - ${msgData.type === "content" ? client.translate.get(db.language, "Commands.schedule.textMsg") : client.translate.get(db.language, "Commands.schedule.embedFields")}`}
+${msgData.type === "command" ? "2️⃣" : "2️⃣"} **${client.translate.get(db.language, "Commands.schedule.sendTime")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: <t:${msgData.timestamp}:f> (<t:${msgData.timestamp}:R>)
+${msgData.type === "command" ? "3️⃣" : "3️⃣"} **${client.translate.get(db.language, "Commands.schedule.recurring")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.recurring || client.translate.get(db.language, "Commands.schedule.none")}
+${msgData.type === "command" ? "" : `4️⃣ **${client.translate.get(db.language, "Commands.schedule.webhook")}** - ${client.translate.get(db.language, "Commands.schedule.currently")}: ${msgData.webhook?.name || client.translate.get(db.language, "Commands.schedule.disabled")}`}
 
 ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`
                     );
@@ -210,7 +241,9 @@ ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`
                 await setupMsg.react("1️⃣");
                 await setupMsg.react("2️⃣");
                 await setupMsg.react("3️⃣");
-                await setupMsg.react("4️⃣");
+                if (msgData.type !== "command") {
+                    await setupMsg.react("4️⃣");
+                }
                 await setupMsg.react(client.config.emojis.cross);
 
                 const session = {
@@ -234,11 +267,14 @@ ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`
                     waitingForWebhookName: false,
                     waitingForWebhookAvatar: false,
                     waitingForRecurring: false,
+                    waitingForCommandArgs: false,
                     webhook: msgData.webhook || null,
                     recurring: msgData.recurring || "none",
                     editMode: "menu",
                     editing: true,
                     timestamp: msgData.timestamp,
+                    commandName: msgData.commandName || null,
+                    commandArgs: msgData.commandArgs || null,
                 };
 
                 client.scheduleCollector.set(userId, session);
@@ -276,18 +312,34 @@ ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`
                     return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.schedule.usage")}: \`${db.prefix}schedule delete [number]\` - ${client.translate.get(db.language, "Commands.schedule.usageUse")}`).setColor("#FF0000")] });
                 }
 
-                const index = parseInt(args[1], 10);
-                if (isNaN(index) || index < 1 || index > scheduled.length) {
+                const indices = args[1].split(',').map(s => parseInt(s.trim(), 10));
+                const validIndices = [];
+                const invalidIndices = [];
+
+                for (const index of indices) {
+                    if (isNaN(index) || index < 1 || index > scheduled.length) {
+                        invalidIndices.push(index);
+                    } else if (!validIndices.includes(index)) {
+                        validIndices.push(index);
+                    }
+                }
+
+                if (validIndices.length === 0) {
                     return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.invalidNum", { "number": scheduled.length })).setColor("#FF0000")] });
                 }
 
-                const msgData = scheduled[index - 1];
-                checkScheduled.handleDelete(message.guildId, msgData.id);
+                const deletedIds = [];
+                for (const index of validIndices.sort((a, b) => b - a)) {
+                    const msgData = scheduled[index - 1];
+                    checkScheduled.handleDelete(message.guildId, msgData.id);
+                    deletedIds.push(index);
+                }
 
-                const updated = scheduled.filter((_, i) => i !== index - 1);
+                const updated = scheduled.filter((_, i) => !validIndices.includes(i + 1));
                 await client.database.updateGuild(message.guildId, { scheduledMessages: updated });
 
-                message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.deleteSuccess", { "number": index })).setColor("#A52F05")] });
+                const deletedList = deletedIds.sort((a, b) => a - b).join(', ');
+                message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.deleteSuccess", { "number": deletedList })).setColor("#A52F05")] });
                 break;
             }
 
@@ -390,6 +442,129 @@ ${client.translate.get(db.language, "Commands.schedule.editSchedLast")}`
                     recurring: "none",
                     editingIndex: null,
                     editingOriginal: null,
+                };
+
+                client.scheduleCollector.set(userId, session);
+
+                const createTimeout = setTimeout(async () => {
+                    if (!client.scheduleCollector.has(userId)) return;
+
+                    const sess = client.scheduleCollector.get(userId);
+                    const endedEmbed = new EmbedBuilder()
+                        .setDescription(client.translate.get(db.language, "Commands.schedule.schedTimeout"))
+                        .setColor("#FF0000");
+
+                    try {
+                        const chan = await client.channels.resolve(sess.channelId);
+                        const msg = await chan?.messages?.fetch(sess.botMessage);
+                        await msg?.edit({ embeds: [endedEmbed] });
+                        await msg?.reactions?.removeAll();
+                    } catch {}
+
+                    client.scheduleCollector.delete(userId);
+                }, SETUP_TIMEOUT);
+
+                client.scheduleCollector.get(userId).timeout = createTimeout;
+                clearCooldown(client, userId);
+                break;
+            }
+
+            case "poll":
+            case "giveaway":
+            case "remind": {
+                const userId = message.author.id;
+                const commandType = args[0].toLowerCase();
+
+                if (client.scheduleCollector.has(userId)) {
+                    return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.alreadyError", { "prefix": db.prefix })).setColor("#FF0000")] });
+                }
+
+                const currentCount = (db.scheduledMessages || []).length;
+                if (currentCount >= MAX_SCHEDULED) {
+                    return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.maxSched", { "max": MAX_SCHEDULED })).setColor("#FF0000")] });
+                }
+
+                let targetChannel = message.channel;
+                let commandArgs = args.slice(1).join(" ");
+
+                // Parse channel mention if present
+                if (CHANNEL_MENTION_REGEX.test(commandArgs)) {
+                    const channelId = commandArgs.match(CHANNEL_MENTION_REGEX).groups.id;
+                    const channels = await message.guild.fetchChannels();
+                    targetChannel = channels.find((c) => c.id === channelId);
+
+                    if (targetChannel?.type === 2 || targetChannel?.type === 4) {
+                        targetChannel = message.channel;
+                    }
+
+                    if (!targetChannel) {
+                        return message.reply({ embeds: [new EmbedBuilder().setDescription(`${client.translate.get(db.language, "Commands.schedule.invalidChannel")}`).setColor("#FF0000")] });
+                    }
+
+                    const me = message.guild?.members.me ?? (message.guild ? await message.guild.members.fetchMe() : null);
+                    const chanPerms = me.permissionsIn(targetChannel);
+                    if (!chanPerms.has(PermissionFlags.SendMessages)) {
+                        return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.permCheck")).setColor("#FF0000")] });
+                    }
+                    if (!chanPerms.has(PermissionFlags.ViewChannel)) {
+                        return message.reply({ embeds: [new EmbedBuilder().setDescription(client.translate.get(db.language, "Commands.schedule.permCheck2")).setColor("#FF0000")] });
+                    }
+
+                    commandArgs = commandArgs.replace(CHANNEL_MENTION_REGEX, "").trim();
+                }
+
+                let parsedArgs;
+                if (commandType === "poll" || commandType === "giveaway") {
+                    parsedArgs = commandArgs.split("|").map(x => x.trim()).filter(x => x);
+                } else if (commandType === "remind") {
+                    parsedArgs = [commandArgs.trim()];
+                } else {
+                    parsedArgs = [commandArgs];
+                }
+
+                if (!parsedArgs[0]) {
+                    let exampleText = "";
+                    if (commandType === "poll") {
+                        exampleText = `Example: \`${db.prefix}schedule poll 5m | What's your favorite color? | Red | Blue | Green\``;
+                    } else if (commandType === "giveaway") {
+                        exampleText = `Example: \`${db.prefix}schedule giveaway 20m | 3 | A t-shirt\``;
+                    } else if (commandType === "remind") {
+                        exampleText = `Example: \`${db.prefix}schedule remind 1h30m Don't forget the meeting\``;
+                    }
+                    return message.reply({ embeds: [new EmbedBuilder().setDescription(`Please provide the command arguments.\n${exampleText}`).setColor("#FF0000")] });
+                }
+
+                const setupEmbed = new EmbedBuilder()
+                    .setColor("#A52F05")
+                    .setDescription(client.translate.get(db.language, "Functions.schedule.whenSent", { exampleTime: "(e.g. `2:30pm`, `in 30 minutes`, `6:00am`)", prefix: db.prefix }));
+
+                const setupMsg = await message.channel.send({ embeds: [setupEmbed] });
+
+                const session = {
+                    user: userId,
+                    timeout: null,
+                    botMessage: setupMsg.id,
+                    channelId: message.channel.id,
+                    guildId: message.guildId,
+                    targetChannelId: targetChannel.id,
+                    type: "command",
+                    commandName: commandType === "poll" ? "polls" : commandType,
+                    commandArgs: parsedArgs,
+                    currentStage: 0,
+                    waitingForTime: true,
+                    done: false,
+                    userMessageId: null,
+                    confirmationMessageId: null,
+                    waitingForWebhook: false,
+                    waitingForWebhookName: false,
+                    waitingForWebhookAvatar: false,
+                    waitingForRecurring: false,
+                    waitingForCommandArgs: false,
+                    webhook: null,
+                    recurring: "none",
+                    editingIndex: null,
+                    editingOriginal: null,
+                    timestamp: null,
                 };
 
                 client.scheduleCollector.set(userId, session);

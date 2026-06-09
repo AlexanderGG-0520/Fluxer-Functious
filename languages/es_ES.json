@@ -8,6 +8,7 @@
       "unavail": "Este comando no está disponible ahora",
       "perms": "No tienes los permisos necesarios para usar este comando",
       "perms2": "Se necesita permiso",
+      "perms3": "If you know you have the correct permission, give any of your roles a random permission. This lets the bot see the updated permissions as sometimes bots can forget what permissions users have.",
       "prefix": "Mi prefijo es",
       "prefix2": "Para empezar, escriba",
       "noRoles": "No hay roles en su mensaje, proporcione algunos siguiendo este ejemplo",
@@ -398,7 +399,9 @@
     },
     "info": {
       "description": "Estadísticas del bot",
-      "start": "Información aleatoria",
+      "start": "Información",
+      "stats": "Statistics",
+      "system": "System",
       "servers": "Servidores",
       "giveaways": "Sorteos",
       "polls": "Encuesta",
