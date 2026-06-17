@@ -87,8 +87,17 @@ module.exports = async (client, oldState, newState) => {
       if (!member) return;
       
     if (!client.observedVoiceUsers.get(userId)) {
+      client.tempChannelCreating ??= new Map();
+      const createKey = `${guildId}:${userId}`;
+
+      if (client.tempChannelCreating.get(createKey)) {
+        console.warn("[tempchannels] create already in progress", { guildId, userId });
+        return;
+      }
+
+      client.tempChannelCreating.set(createKey, Date.now());
+
       try {
-        client.observedVoiceUsers.set(userId, { channelId: newChannelId, guildId });
         const channelNameBase = db.config?.channelName ? db.config.channelName : state.member.nick ? `${state.member.nick}${state.member.nick[state.member.nick.length - 1].toLowerCase() === "s" ? "'" : "'s"} Channel` : state.member?.user?.global_name ? `${state.member.user.global_name}${state.member.user.global_name[state.member.user.global_name.length - 1].toLowerCase() === "s" ? "'" : "'s"} Channel` : `${state.member.user.username}${state.member.user.username[state.member.user.username.length - 1].toLowerCase() === "s" ? "'" : "'s"} Channel`
         const channelName = db?.config?.counting ? `${channelNameBase} (${(db?.tempChannels?.length ?? 0) + 1})` : channelNameBase;
         
@@ -100,19 +109,42 @@ module.exports = async (client, oldState, newState) => {
           bitrate: 64000,
         });
 
-        // if (db?.config?.manage) {
-        //   await voiceChannel.editPermission(userId, {
-        //     type: 1,
-        //     allow: resolvePermissionsToBitfield([
-        //       "Connect",
-        //       "Speak",
-        //       "MuteMembers",
-        //       "DeafenMembers",
-        //       "MoveMembers",
-        //       "ManageChannels",
-        //     ]),
-        //   })
-        // }
+        await voiceChannel.editPermission(userId, {
+          type: 1,
+          allow: resolvePermissionsToBitfield([
+            "Connect",
+            "Speak",
+          ]),
+        }).catch((err) => {
+          console.error("[tempchannels] failed to grant owner voice permissions", {
+            guildId,
+            userId,
+            channelId: voiceChannel.id,
+            error: err,
+          });
+        });
+
+        if (db?.config?.manage) {
+          await voiceChannel.editPermission(userId, {
+            type: 1,
+            allow: resolvePermissionsToBitfield([
+              "Connect",
+              "Speak",
+              "MuteMembers",
+              "DeafenMembers",
+              "MoveMembers",
+              "ManageChannels",
+            ]),
+          }).catch((err) => {
+            console.error("[tempchannels] failed to grant owner manage permissions", {
+              guildId,
+              userId,
+              channelId: voiceChannel.id,
+              error: err,
+            });
+          });
+        }
+
         try {
           await member.move(voiceChannel.id);
           console.log("[tempchannels] moved member into temp channel", {
@@ -127,14 +159,23 @@ module.exports = async (client, oldState, newState) => {
             channelId: voiceChannel.id,
             error: err,
           });
+
+          await voiceChannel.delete().catch((deleteErr) => {
+            console.error("[tempchannels] failed to delete temp channel after move failure", {
+              guildId,
+              userId,
+              channelId: voiceChannel.id,
+              error: deleteErr,
+            });
+          });
+
+          return;
         }
 
         client.observedVoiceUsers.set(userId, {
           channelId: voiceChannel.id,
           guildId,
         });
-
-        await member.move(voiceChannel.id).catch(() => { });
   
         await client.database.updateGuild(guildId, {
           tempChannels: [
@@ -150,6 +191,8 @@ module.exports = async (client, oldState, newState) => {
           config: { client, userId },
           sendInChannel: false,
         });
+      } finally {
+        client.tempChannelCreating.delete(createKey);
       }
       }
     }
