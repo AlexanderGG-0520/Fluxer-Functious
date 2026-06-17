@@ -8,6 +8,9 @@ const { Client } = require("@erinjs/core");
 const Sentry = require("@sentry/node");
 
 const client = new Client({ 
+  rest: {
+    api: process.env.FLUXER_API_URL || "https://api.fluxer.app"
+  },
   intents: 0,
   presence: {
     custom_status: {
