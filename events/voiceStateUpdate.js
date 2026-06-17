@@ -114,33 +114,26 @@ module.exports = async (client, oldState, newState) => {
         //   })
         // }
         try {
-          const member = await guild.members.fetch(userId).catch(() => null);
-
-          if (member && typeof member.move === "function") {
-            await member.move(voiceChannel.id);
-          } else if (member && member.voice && typeof member.voice.setChannel === "function") {
-            await member.voice.setChannel(voiceChannel.id);
-          } else {
-            console.warn("[tempchannels] Could not move member: no supported member move method", {
-              guildId,
-              userId,
-              channelId: voiceChannel.id,
-            });
-          }
+          await member.move(voiceChannel.id);
+          console.log("[tempchannels] moved member into temp channel", {
+            guildId,
+            userId,
+            channelId: voiceChannel.id,
+          });
         } catch (err) {
-          console.error("[tempchannels] Failed to move member into temporary channel", {
+          console.error("[tempchannels] failed to move member into temp channel", {
             guildId,
             userId,
             channelId: voiceChannel.id,
             error: err,
           });
         }
-  
+
         client.observedVoiceUsers.set(userId, {
           channelId: voiceChannel.id,
           guildId,
         });
-        
+
         await member.move(voiceChannel.id).catch(() => { });
   
         await client.database.updateGuild(guildId, {
