@@ -109,21 +109,6 @@ module.exports = async (client, oldState, newState) => {
           bitrate: 64000,
         });
 
-        await voiceChannel.editPermission(userId, {
-          type: 1,
-          allow: resolvePermissionsToBitfield([
-            "Connect",
-            "Speak",
-          ]),
-        }).catch((err) => {
-          console.error("[tempchannels] failed to grant owner voice permissions", {
-            guildId,
-            userId,
-            channelId: voiceChannel.id,
-            error: err,
-          });
-        });
-
         if (db?.config?.manage) {
           await voiceChannel.editPermission(userId, {
             type: 1,
